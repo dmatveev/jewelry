@@ -39,7 +39,7 @@ main :: IO ()
 main = do
     SDL.init [SDL.InitEverything]
     SDL.enableKeyRepeat 1 1
-    SDL.setVideoMode 640 480 32 []
+    SDL.setVideoMode 180 390 32 []
     SDL.setCaption "Jewerly" "Jewerly"
     seed <- currentSeconds
     mainSurf <- SDL.getVideoSurface
@@ -58,33 +58,43 @@ collectEvents = reverse `liftM` (collect' [])
             else collect' $ event : es
 
 
+live :: Integer -> GameState -> GameState
+live time gs =
+  if time - ticks gs > 1
+  then userMoveFigure ToDown $ setTicks gs time
+  else gs
+
+
+processEvents :: [SDL.Event] -> GameState -> GameState
+processEvents evts gs = foldl' processEvent gs evts
+
+
+processEvent :: GameState -> SDL.Event -> GameState
+processEvent gs (KeyDown k) = handleKbd k gs
+processEvent gs _           = gs
+
+
+handleKbd :: SDL.Keysym -> GameState -> GameState
+handleKbd (SDL.Keysym k _ _) gs = case k of
+    SDLK_LEFT  -> userMoveFigure ToLeft  gs
+    SDLK_RIGHT -> userMoveFigure ToRight gs
+    SDLK_DOWN  -> userMoveFigure ToDown  gs
+    SDLK_SPACE -> shuffleFigure gs
+    otherwise  -> gs
+
+
 eventLoop :: AppState -> IO ()
 eventLoop as = do
   evts <- collectEvents
   if quitPressed evts
   then return ()
   else do seconds <- currentSeconds
-          let as' = as `modGame` \g -> setTicks g seconds
-              newState = foldl' processEvent as' evts
+          let newState = modGame as $ \g ->
+                 processEvents evts $ live seconds g
           render newState
-          SDL.delay 60
+          SDL.delay 30
           eventLoop newState
 
-
-processEvent :: AppState -> SDL.Event -> AppState
-processEvent as (KeyDown k) = handleKbd as k
-processEvent as _           = as
-
-
-handleKbd :: AppState -> SDL.Keysym -> AppState
-handleKbd as (SDL.Keysym k _ _) = modGame as $ \thisState ->
-  case k of
-    SDLK_LEFT  -> userMoveFigure ToLeft  thisState
-    SDLK_RIGHT -> userMoveFigure ToRight thisState
-    SDLK_DOWN  -> userMoveFigure ToDown  thisState
-    SDLK_SPACE -> shuffleFigure thisState
-    otherwise  -> thisState
-          
 
 quitPressed :: [SDL.Event] -> Bool
 quitPressed evts = any (== SDL.Quit) evts

@@ -28,7 +28,7 @@ genMutators ''GameState
 mkGame :: (Int, Int) -> Integer -> GameState
 mkGame (rs, cs) seed =
   GameState { field = mkField rs cs
-            , figure = Figure (Point 1 1) [Yellow, Purple, White]
+            , figure = generateNewFigure seed
             , ticks = seed
             }
 
@@ -37,15 +37,18 @@ shuffleFigure :: GameState -> GameState
 shuffleFigure gs = modFigure gs $ \f -> shuffle f
 
 
-throwNewFigure :: GameState -> GameState
-throwNewFigure gs =
-  setFigure gs $ Figure (Point 1 1) jewels
+generateNewFigure :: Integer -> Figure
+generateNewFigure seed = Figure (Point 1 1) jewels
   where jewels = map (allJewels !!) idxs
         idxs = map (\t -> abs t `mod` length allJewels)
                $ take 3
                $ randoms rndGen
         allJewels = [Red, Green, Blue, Yellow, Purple, White]
-        rndGen = mkStdGen $ fromIntegral $ ticks gs
+        rndGen = mkStdGen $ fromIntegral seed
+
+
+throwNewFigure :: GameState -> GameState
+throwNewFigure gs = setFigure gs $ generateNewFigure $ ticks gs
 
 
 userMoveFigure :: Direction -> GameState -> GameState
