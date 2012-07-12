@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Figure
        (
          Figure(..)
@@ -6,8 +8,12 @@ module Figure
        , figPoints
 
        , inside
-       , jewelAt    
+       , jewelAt
+
+       , shuffle
        ) where
+
+import Data.Mutators
 
 import Basics
 import Point
@@ -19,12 +25,13 @@ data Figure = Figure {
   } deriving (Eq, Show)
 
 
+genMutators ''Figure
+
+
 instance GameObject Figure where
-  moveInto f p = f { figPos = p }
-
-  moveTo f d = f { figPos = (figPos f) `moveTo` d }
-
-  position = figPos
+  moveInto   = setFigPos
+  moveTo f d = modFigPos f $ \p -> p `moveTo` d
+  position   = figPos
   
 
 figLength :: Figure -> Int
@@ -46,3 +53,7 @@ inside (Point prow pcol) fig =
 jewelAt :: Figure -> Point -> Jewel
 jewelAt fig pt@(Point prow _) = (figJewels fig) !! (prow - frow)
   where (Point frow _) = figPos fig
+
+
+shuffle :: Figure -> Figure
+shuffle f = modFigJewels f $ \(js) -> last js : init js

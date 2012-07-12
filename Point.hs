@@ -6,7 +6,6 @@ module Point
 import Basics
 
 
-
 instance GameObject Point where
   moveInto _ p = p
 
