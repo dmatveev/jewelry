@@ -2,10 +2,11 @@
 
 module Game where
 
-import Data.List (intersperse)
+import Data.List (intersperse, groupBy, foldl', nub)
 import Control.Monad (forM_)
 import Control.Monad.ST
 import Data.Array.ST
+import Data.STRef
 import System.Random
 
 import Data.Mutators
@@ -51,12 +52,12 @@ throwNewFigure :: GameState -> GameState
 throwNewFigure gs = setFigure gs $ generateNewFigure $ ticks gs
 
 
-userMoveFigure :: Direction -> GameState -> GameState
-userMoveFigure d gs =
+moveFigure :: Direction -> GameState -> GameState
+moveFigure d gs =
   if canMoveFigure d gs
-  then moveFigure d gs
+  then modFigure gs $ \f -> f `moveTo` d
   else if d == ToDown && canLandFigure gs
-       then throwNewFigure $ landFigureDown gs
+       then throwNewFigure $ fireCells $ landFigureDown gs
        else gs
 
 
@@ -91,10 +92,6 @@ landFigureDown gs = runST $ do
         fig = figure gs
 
 
-moveFigure :: Direction -> GameState -> GameState
-moveFigure d gs = modFigure gs $ \f -> f `moveTo` d
-
-
 canMoveFigure :: Direction -> GameState -> Bool
 canMoveFigure d gs = (&&) (newTailPos `isInside` fld)
                           (all (== Empty) targetCells)
@@ -106,6 +103,59 @@ canMoveFigure d gs = (&&) (newTailPos `isInside` fld)
         
         fld = field gs
         fig = figure gs
+
+
+firingCells :: [(Point, Cell)] -> [(Point, Cell)]
+firingCells cs = concat $ filter isFiring $ groupBy sameJewel cs
+  where sameJewel (_, (Jewel j1)) (_, (Jewel j2)) = j1 == j2
+        sameJewel _ _ = False
+        isFiring js = length js >= 3
+
+
+dropFiring :: GameState -> [(Point, Cell)] -> GameState
+dropFiring gs cs = runST $ do
+    arr <- (thaw $ fieldMatrix $ field gs)
+           :: ST s (STArray s (Int, Int) Cell)
+
+    -- erase the firing cells from the matrix
+    forM_ cs $ \(Point r c, _) -> writeArray arr (r, c) $ Empty
+
+    -- move down hanging jewels in the each column
+    forM_ [1 .. cols] $ \col -> do
+      state <- newSTRef (Nothing :: Maybe Point)
+      forM_ [rows, pred rows .. 1] $ \row -> do
+        cell <- readArray arr (row, col)
+        case cell of
+          Empty -> modifySTRef state (gotEmptyField $ Point row col)
+          j@(Jewel _) -> do
+            lastEmptyPoint <- readSTRef state
+            case lastEmptyPoint of
+              Nothing  -> return ()
+              Just (Point emRow emCol) -> do
+                writeArray arr (emRow, emCol) j
+                writeArray arr (row, col) Empty
+                writeSTRef state $ Just $ Point (emRow - 1) emCol
+
+    newArr <- freeze arr
+    return $ gs { field = Field newArr }
+  where (rows, cols) = (numRows fld, numCols fld)
+        fld = field gs
+
+        -- a tiny FSM (state is the second argument)
+        gotEmptyField :: Point -> Maybe Point -> Maybe Point
+        gotEmptyField p Nothing  = Just p
+        gotEmptyField _ oldState = oldState
+
+
+fireCells :: GameState -> GameState
+fireCells gs = dropFiring gs $ nub $ firingCells allCells
+  where allCells = concat
+                   $ map (\cs -> concat $ map firingCells cs)
+                   $ [allRows, allCols, diagsL, diagsR]
+        allRows = fieldRows fld
+        allCols = fieldCols fld
+        (diagsL, diagsR) = fieldDiags fld
+        fld = field gs
 
 
 printedState :: GameState -> String
@@ -131,12 +181,3 @@ printedState gs  = concat $ intersperse "\n" $ rowStrings
         cs = numCols fld
         fld = field gs
         fig = figure gs
-
-
-instance Show GameState where
-  show = printedState
-
-
-frepeat :: (a -> a) -> a -> Integer -> a
-frepeat _ a 0 = a
-frepeat f a n = frepeat f (f a) (n - 1)

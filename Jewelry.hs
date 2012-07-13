@@ -61,7 +61,7 @@ collectEvents = reverse `liftM` (collect' [])
 live :: Integer -> GameState -> GameState
 live time gs =
   if time - ticks gs > 1
-  then userMoveFigure ToDown $ setTicks gs time
+  then moveFigure ToDown $ setTicks gs time
   else gs
 
 
@@ -76,9 +76,9 @@ processEvent gs _           = gs
 
 handleKbd :: SDL.Keysym -> GameState -> GameState
 handleKbd (SDL.Keysym k _ _) gs = case k of
-    SDLK_LEFT  -> userMoveFigure ToLeft  gs
-    SDLK_RIGHT -> userMoveFigure ToRight gs
-    SDLK_DOWN  -> userMoveFigure ToDown  gs
+    SDLK_LEFT  -> moveFigure ToLeft  gs
+    SDLK_RIGHT -> moveFigure ToRight gs
+    SDLK_DOWN  -> moveFigure ToDown  gs
     SDLK_SPACE -> shuffleFigure gs
     otherwise  -> gs
 
@@ -92,7 +92,7 @@ eventLoop as = do
           let newState = modGame as $ \g ->
                  processEvents evts $ live seconds g
           render newState
-          SDL.delay 30
+          SDL.delay 50
           eventLoop newState
 
 
