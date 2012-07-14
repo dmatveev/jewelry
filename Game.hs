@@ -120,7 +120,7 @@ dropFiring gs cs = runST $ do
     -- erase the firing cells from the matrix
     forM_ cs $ \(Point r c, _) -> writeArray arr (r, c) $ Empty
 
-    -- move down hanging jewels in the each column
+    -- move down the hanging jewels in the each column
     forM_ [1 .. cols] $ \col -> do
       state <- newSTRef (Nothing :: Maybe Point)
       forM_ [rows, pred rows .. 1] $ \row -> do
@@ -148,8 +148,15 @@ dropFiring gs cs = runST $ do
 
 
 fireCells :: GameState -> GameState
-fireCells gs = dropFiring gs $ nub $ firingCells allCells
-  where allCells = concat
+fireCells gs = let (cells, gs') = fireCellsOnce gs
+               in if null cells then gs'
+                     else fireCells gs'
+
+
+fireCellsOnce :: GameState -> ([(Point, Cell)], GameState)
+fireCellsOnce gs = (foundCells, dropFiring gs foundCells)
+  where foundCells = nub $ firingCells allCells
+        allCells = concat
                    $ map (\cs -> concat $ map firingCells cs)
                    $ [allRows, allCols, diagsL, diagsR]
         allRows = fieldRows fld
