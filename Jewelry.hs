@@ -78,8 +78,9 @@ handleKbd :: SDL.Keysym -> GameState -> GameState
 handleKbd (SDL.Keysym k _ _) gs = case k of
     SDLK_LEFT  -> moveFigure ToLeft  gs
     SDLK_RIGHT -> moveFigure ToRight gs
-    SDLK_DOWN  -> moveFigure ToDown  gs
-    SDLK_SPACE -> shuffleFigure gs
+    SDLK_DOWN  -> shuffleFigure ToDown gs
+    SDLK_UP    -> shuffleFigure ToUp gs
+    SDLK_SPACE -> dropFigure gs
     otherwise  -> gs
 
 

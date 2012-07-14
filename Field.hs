@@ -6,8 +6,12 @@ module Field
        , numCols
        , cellAt
 
+
+       , fieldRow
        , fieldRows
+       , fieldCol
        , fieldCols
+         
        , fieldDiags
        ) where
 

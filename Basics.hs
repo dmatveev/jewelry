@@ -15,6 +15,7 @@ data Cell = Jewel Jewel
 data Direction = ToLeft
                | ToRight
                | ToDown
+               | ToUp
                  deriving (Eq, Show)
 
 data Point = Point Int Int

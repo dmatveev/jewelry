@@ -34,8 +34,23 @@ mkGame (rs, cs) seed =
             }
 
 
-shuffleFigure :: GameState -> GameState
-shuffleFigure gs = modFigure gs $ \f -> shuffle f
+shuffleFigure :: Direction -> GameState -> GameState
+shuffleFigure d gs = modFigure gs $ \f -> shuffle f d
+
+
+dropFigure :: GameState -> GameState
+dropFigure gs = landFigure $ modFigure gs $ \f -> setFigPos f dropPos
+  where dropPos = Point dropRow fCol
+        dropRow = emptyLength - figLength fig + 1
+        emptyLength = length $ head $ groupBy empties thisColumn
+        thisColumn = fieldCol fld fCol
+
+        (Point fRow fCol) = figPos fig
+        fig = figure gs
+        fld = field gs
+
+        empties (_, Empty) (_, Empty) = True
+        empties _ _ = False
 
 
 generateNewFigure :: Integer -> Figure
@@ -57,7 +72,7 @@ moveFigure d gs =
   if canMoveFigure d gs
   then modFigure gs $ \f -> f `moveTo` d
   else if d == ToDown && canLandFigure gs
-       then throwNewFigure $ fireCells $ landFigureDown gs
+       then landFigure gs
        else gs
 
 
@@ -77,8 +92,8 @@ canLandFigure gs = (&&) (figTopPoint `isInside` fld)
         fld = field gs
 
 
-landFigureDown :: GameState -> GameState
-landFigureDown gs = runST $ do
+stampFigure :: GameState -> GameState
+stampFigure gs = runST $ do
     arr <- (thaw $ fieldMatrix $ field gs)
            :: ST s (STArray s (Int, Int) Cell)
 
@@ -90,6 +105,10 @@ landFigureDown gs = runST $ do
   where (Point figRow figCol) = figPos fig
         jewels = zip [0,1..] (figJewels fig)
         fig = figure gs
+
+
+landFigure :: GameState -> GameState
+landFigure gs = throwNewFigure $ fireCells $ stampFigure gs
 
 
 canMoveFigure :: Direction -> GameState -> Bool
@@ -105,11 +124,14 @@ canMoveFigure d gs = (&&) (newTailPos `isInside` fld)
         fig = figure gs
 
 
+sameJewel :: (Point, Cell) -> (Point, Cell) -> Bool
+sameJewel (_, (Jewel j1)) (_, (Jewel j2)) = j1 == j2
+sameJewel _ _ = False
+
+
 firingCells :: [(Point, Cell)] -> [(Point, Cell)]
 firingCells cs = concat $ filter isFiring $ groupBy sameJewel cs
-  where sameJewel (_, (Jewel j1)) (_, (Jewel j2)) = j1 == j2
-        sameJewel _ _ = False
-        isFiring js = length js >= 3
+  where isFiring js = length js >= 3
 
 
 dropFiring :: GameState -> [(Point, Cell)] -> GameState
