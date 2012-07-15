@@ -1,11 +1,11 @@
 module Basics where
 
-data Jewel = Red
+data Jewel = Cherry
            | Green
            | Blue
-           | Yellow
+           | Grape
            | Purple
-           | White
+           | Orange
              deriving (Eq, Show)
 
 data Cell = Jewel Jewel

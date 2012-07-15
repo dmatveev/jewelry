@@ -18,7 +18,7 @@ import Figure (Figure, figPoints, figJewels)
 
 data AppState = AppState {
     surface     :: SDL.Surface
-  , game        :: GameState
+  , game        :: Game
   , lastMoveKbd :: Word32
   , lastDropKbd :: Word32
 }
@@ -57,7 +57,7 @@ collectEvents = reverse `liftM` (collect' [])
             else collect' $ event : es
 
 
-live :: Integer -> GameState -> GameState
+live :: Integer -> Game -> Game
 live time gs =
   if time - ticks gs > 1
   then moveFigure ToDown $ setTicks gs time
@@ -124,12 +124,21 @@ render :: AppState -> IO ()
 render as = do
     SDL.fillRect surf Nothing (SDL.Pixel 0)
 
-    renderField surf $ field g
-    renderFigure surf $ figure g
+    if state g /= GameOver
+    then do renderField surf $ field g
+            renderFigure surf $ figure g
+    else renderGameOver surf
 
     SDL.flip surf
  where (g, surf) = (game as, surface as)
+       fld = field g
 
+
+renderGameOver :: SDL.Surface -> IO ()
+renderGameOver surf = do
+    SDL.fillRect surf Nothing (Pixel 0)
+    return ()
+                      
 
 renderField :: SDL.Surface -> Field -> IO ()
 renderField surf f = forM_ cells (renderCell surf)
@@ -138,10 +147,12 @@ renderField surf f = forM_ cells (renderCell surf)
 
 renderFigure :: SDL.Surface -> Figure -> IO ()
 renderFigure surf fig = forM_ cells (renderCell surf)
-  where cells = zip (map ptData $ figPoints fig)
-                    (map Jewel $ figJewels fig)
+  where cells = filter visible
+                $ zip (map ptData $ figPoints fig)
+                      (map Jewel $ figJewels fig)
 
         ptData (Point pRow pCol) = (pRow, pCol)
+        visible ((r, _), _) = r >= 1
           
 
 renderCell :: SDL.Surface -> ((Int, Int), Cell) -> IO ()
@@ -162,10 +173,10 @@ colorForCell :: Cell -> (Word8, Word8, Word8)
 colorForCell Empty = (60, 60, 60)
 colorForCell (Jewel j) =
   case j of
-    Red -> (255, 0, 0)
-    Green -> (0, 255, 0)
-    Blue -> (0, 0, 255)
-    Yellow -> (255, 255, 0)
-    Purple -> (160, 32, 240)
-    White -> (255, 255, 255)
+    Cherry -> (228,   0,  88)
+    Green  -> ( 76, 220,  72)
+    Blue   -> ( 60, 180, 252)
+    Orange -> (240, 188,  60)
+    Purple -> (149,  65, 252)
+    Grape  -> (252, 116,  96)
   

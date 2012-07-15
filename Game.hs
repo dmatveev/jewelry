@@ -17,63 +17,84 @@ import Field
 import Figure
 
 
-data GameState = GameState {
+data GameState = Playing | Paused | GameOver
+                 deriving (Eq, Show)
+
+
+data Game = Game {
     figure :: Figure
-  , field :: Field
-  , ticks :: Integer
+  , field  :: Field
+  , ticks  :: Integer
+  , state :: GameState
   }
+                 
 
-genMutators ''GameState
+genMutators ''Game
 
 
-mkGame :: (Int, Int) -> Integer -> GameState
+mkGame :: (Int, Int) -> Integer -> Game
 mkGame (rs, cs) seed =
-  GameState { field = mkField rs cs
+  Game { field = mkField rs cs
             , figure = generateNewFigure seed
             , ticks = seed
+            , state = Playing
             }
 
 
-shuffleFigure :: Direction -> GameState -> GameState
-shuffleFigure d gs = modFigure gs $ \f -> shuffle f d
+ensureState :: Game -> GameState -> (Game -> Game) -> Game
+ensureState g st f | st == state g = f g
+                   | otherwise     = g
 
 
-dropFigure :: GameState -> GameState
-dropFigure gs = landFigure $ modFigure gs $ \f -> setFigPos f dropPos
+shuffleFigure :: Direction -> Game -> Game
+shuffleFigure d game = ensureState game Playing
+                       $ \g -> modFigure g (\f -> shuffle f d)
+
+
+dropFigure :: Game -> Game
+dropFigure game = ensureState game Playing $ \g ->
+                  if dropPos `isInside` fld
+                  then landFigure
+                       $ modFigure g (\f -> setFigPos f dropPos)
+                  else setState g GameOver
   where dropPos = Point dropRow fCol
         dropRow = emptyLength - figLength fig + 1
         emptyLength = length $ head $ groupBy empties thisColumn
         thisColumn = fieldCol fld fCol
 
         (Point fRow fCol) = figPos fig
-        fig = figure gs
-        fld = field gs
+        fig = figure game
+        fld = field game
 
         empties (_, Empty) (_, Empty) = True
         empties _ _ = False
 
 
 generateNewFigure :: Integer -> Figure
-generateNewFigure seed = Figure (Point 1 1) jewels
-  where jewels = map (allJewels !!) idxs
+generateNewFigure seed = Figure pos jewels
+  where pos = Point (negate $ pred $ length jewels) 3
+        jewels = map (allJewels !!) idxs
         idxs = map (\t -> abs t `mod` length allJewels)
                $ take 3
                $ randoms rndGen
-        allJewels = [Red, Green, Blue, Yellow, Purple, White]
+        allJewels = [Cherry, Green, Blue, Orange, Purple, Grape]
         rndGen = mkStdGen $ fromIntegral seed
 
 
-throwNewFigure :: GameState -> GameState
-throwNewFigure gs = setFigure gs $ generateNewFigure $ ticks gs
+throwNewFigure :: Game -> Game
+throwNewFigure game = ensureState game Playing $ \g ->
+  setFigure g (generateNewFigure $ ticks game)
 
 
-moveFigure :: Direction -> GameState -> GameState
-moveFigure d gs =
-  if canMoveFigure d gs
-  then modFigure gs $ \f -> f `moveTo` d
-  else if d == ToDown && canLandFigure gs
-       then landFigure gs
-       else gs
+moveFigure :: Direction -> Game -> Game
+moveFigure d game = ensureState game Playing $ \g ->
+  if canMoveFigure d g
+  then modFigure g $ \f -> f `moveTo` d
+  else if d == ToDown
+       then if canLandFigure g
+            then landFigure g
+            else setState g GameOver
+       else g
 
 
 isInside :: Point -> Field -> Bool
@@ -82,37 +103,37 @@ isInside (Point prow pcol) fld =
        (pcol <= numCols fld && pcol >= 1)
 
 
-canLandFigure :: GameState -> Bool
-canLandFigure gs = (&&) (figTopPoint `isInside` fld)
-                        ((||) (not (newTailPoint `isInside` fld))
-                              (fld `cellAt` newTailPoint /= Empty))
+canLandFigure :: Game -> Bool
+canLandFigure game = (&&) (figTopPoint `isInside` fld)
+                          ((||) (not (newTailPoint `isInside` fld))
+                                (fld `cellAt` newTailPoint /= Empty))
   where figTopPoint = figPos fig
         newTailPoint = last $ figPoints $ (fig `moveTo` ToDown)
-        fig = figure gs
-        fld = field gs
+        fig = figure game
+        fld = field game
 
 
-stampFigure :: GameState -> GameState
-stampFigure gs = runST $ do
-    arr <- (thaw $ fieldMatrix $ field gs)
+stampFigure :: Game -> Game
+stampFigure game = runST $ do
+    arr <- (thaw $ fieldMatrix $ field game)
            :: ST s (STArray s (Int, Int) Cell)
 
     forM_ jewels $ \(dRow, jewel) -> do
       writeArray arr (figRow + dRow, figCol) $ Jewel jewel
   
     newArr <- freeze arr
-    return $ gs { field = Field newArr }
+    return $ game { field = Field newArr }
   where (Point figRow figCol) = figPos fig
         jewels = zip [0,1..] (figJewels fig)
-        fig = figure gs
+        fig = figure game
 
 
-landFigure :: GameState -> GameState
-landFigure gs = throwNewFigure $ fireCells $ stampFigure gs
+landFigure :: Game -> Game
+landFigure game = throwNewFigure $ fireCells $ stampFigure game
 
 
-canMoveFigure :: Direction -> GameState -> Bool
-canMoveFigure d gs = (&&) (newTailPos `isInside` fld)
+canMoveFigure :: Direction -> Game -> Bool
+canMoveFigure d game = (&&) (newTailPos `isInside` fld)
                           (all (== Empty) targetCells)
   where newTailPos = last newFigPoints
         targetCells = map (cellAt fld) $ dropOffscreen newFigPoints
@@ -120,8 +141,8 @@ canMoveFigure d gs = (&&) (newTailPos `isInside` fld)
 
         dropOffscreen = filter (\x -> x `isInside` fld)
         
-        fld = field gs
-        fig = figure gs
+        fld = field game
+        fig = figure game
 
 
 sameJewel :: (Point, Cell) -> (Point, Cell) -> Bool
@@ -134,9 +155,9 @@ firingCells cs = concat $ filter isFiring $ groupBy sameJewel cs
   where isFiring js = length js >= 3
 
 
-dropFiring :: GameState -> [(Point, Cell)] -> GameState
-dropFiring gs cs = runST $ do
-    arr <- (thaw $ fieldMatrix $ field gs)
+dropFiring :: Game -> [(Point, Cell)] -> Game
+dropFiring game cs = runST $ do
+    arr <- (thaw $ fieldMatrix $ field game)
            :: ST s (STArray s (Int, Int) Cell)
 
     -- erase the firing cells from the matrix
@@ -159,9 +180,9 @@ dropFiring gs cs = runST $ do
                 writeSTRef state $ Just $ Point (emRow - 1) emCol
 
     newArr <- freeze arr
-    return $ gs { field = Field newArr }
+    return $ game { field = Field newArr }
   where (rows, cols) = (numRows fld, numCols fld)
-        fld = field gs
+        fld = field game
 
         -- a tiny FSM (state is the second argument)
         gotEmptyField :: Point -> Maybe Point -> Maybe Point
@@ -169,14 +190,14 @@ dropFiring gs cs = runST $ do
         gotEmptyField _ oldState = oldState
 
 
-fireCells :: GameState -> GameState
-fireCells gs = let (cells, gs') = fireCellsOnce gs
-               in if null cells then gs'
-                     else fireCells gs'
+fireCells :: Game -> Game
+fireCells game = let (cells, game') = fireCellsOnce game
+               in if null cells then game'
+                     else fireCells game'
 
 
-fireCellsOnce :: GameState -> ([(Point, Cell)], GameState)
-fireCellsOnce gs = (foundCells, dropFiring gs foundCells)
+fireCellsOnce :: Game -> ([(Point, Cell)], Game)
+fireCellsOnce game = (foundCells, dropFiring game foundCells)
   where foundCells = nub $ firingCells allCells
         allCells = concat
                    $ map (\cs -> concat $ map firingCells cs)
@@ -184,11 +205,11 @@ fireCellsOnce gs = (foundCells, dropFiring gs foundCells)
         allRows = fieldRows fld
         allCols = fieldCols fld
         (diagsL, diagsR) = fieldDiags fld
-        fld = field gs
+        fld = field game
 
 
-printedState :: GameState -> String
-printedState gs  = concat $ intersperse "\n" $ rowStrings
+printedState :: Game -> String
+printedState game  = concat $ intersperse "\n" $ rowStrings
   where rowStrings = map strfyRow [1..rs]
         strfyRow i = concat $ map (strfyCell i) [1..cs]
         strfyCell i j = let pt = Point i j
@@ -199,14 +220,14 @@ printedState gs  = concat $ intersperse "\n" $ rowStrings
         strfy (Jewel c) = printed c
         strfy Empty = "_"
 
-        printed Red    = "r"
+        printed Cherry = "c"
         printed Green  = "g"
         printed Blue   = "b"
-        printed Yellow = "y"
+        printed Orange = "o"
         printed Purple = "p"
-        printed White  = "w"
+        printed Grape  = "g"
 
         rs = numRows fld
         cs = numCols fld
-        fld = field gs
-        fig = figure gs
+        fld = field game
+        fig = figure game
