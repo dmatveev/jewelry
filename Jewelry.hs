@@ -15,15 +15,12 @@ import Game
 
 import Field (Field, fieldMatrix)
 import Figure (Figure, figPoints, figJewels)
-               
-data DisplayContext = DisplayContext {
-    surface   :: SDL.Surface
-  , pixFormat :: SDL.PixelFormat
-}
 
 data AppState = AppState {
-    display :: DisplayContext
-  , game    :: GameState
+    surface     :: SDL.Surface
+  , game        :: GameState
+  , lastMoveKbd :: Word32
+  , lastDropKbd :: Word32
 }
 
 genMutators ''AppState
@@ -43,9 +40,11 @@ main = do
     SDL.setCaption "Jewerly" "Jewerly"
     seed <- currentSeconds
     mainSurf <- SDL.getVideoSurface
-    let pixFormat = SDL.surfaceGetPixelFormat mainSurf
-    eventLoop $ AppState (DisplayContext mainSurf pixFormat)
-                         (mkGame (13, 6) seed)
+    eventLoop $ AppState { surface = mainSurf
+                         , game = mkGame (13, 6) seed
+                         , lastMoveKbd = 0
+                         , lastDropKbd = 0
+                         }
     SDL.quit
 
 
@@ -65,23 +64,42 @@ live time gs =
   else gs
 
 
-processEvents :: [SDL.Event] -> GameState -> GameState
-processEvents evts gs = foldl' processEvent gs evts
+processEvents :: Word32 -> [SDL.Event] -> AppState -> AppState
+processEvents ticks evts as = foldl' (processEvent ticks) as evts
 
 
-processEvent :: GameState -> SDL.Event -> GameState
-processEvent gs (KeyDown k) = handleKbd k gs
-processEvent gs _           = gs
+keepKbdSpeed :: Word32                           -- current time
+             -> Word32                           -- desired interval
+             -> (AppState -> Word32)             -- kbd time getter
+             -> (AppState -> Word32 -> AppState) -- kbd time setter
+             -> (AppState -> AppState)           -- app state action
+             -> AppState                         -- initial app state
+             -> AppState
+keepKbdSpeed ticks interval getter setter f as =
+  let elapsed = ticks - getter as
+  in if elapsed > interval
+     then f $ setter as ticks
+     else as
 
 
-handleKbd :: SDL.Keysym -> GameState -> GameState
-handleKbd (SDL.Keysym k _ _) gs = case k of
-    SDLK_LEFT  -> moveFigure ToLeft  gs
-    SDLK_RIGHT -> moveFigure ToRight gs
-    SDLK_DOWN  -> shuffleFigure ToDown gs
-    SDLK_UP    -> shuffleFigure ToUp gs
-    SDLK_SPACE -> dropFigure gs
-    otherwise  -> gs
+processEvent :: Word32 -> AppState -> SDL.Event -> AppState
+processEvent t as (KeyDown k) = handleKbd t k as
+processEvent _ as _           = as
+
+
+handleKbd :: Word32 -> SDL.Keysym -> AppState -> AppState
+handleKbd ticks (SDL.Keysym k _ _) as = case k of
+    SDLK_LEFT  -> defWard $ moveFigure ToLeft
+    SDLK_RIGHT -> defWard $ moveFigure ToRight
+    SDLK_DOWN  -> defWard $ shuffleFigure ToDown
+    SDLK_UP    -> defWard $ shuffleFigure ToUp
+    SDLK_SPACE -> spcWard $ dropFigure
+    otherwise  -> as
+  where
+    wrapper f i s g = keepKbdSpeed ticks i s g (mutator f) as
+    mutator f as = modGame as f
+    defWard f = wrapper f 100 lastMoveKbd setLastMoveKbd
+    spcWard f = wrapper f 500 lastDropKbd setLastDropKbd
 
 
 eventLoop :: AppState -> IO ()
@@ -90,8 +108,9 @@ eventLoop as = do
   if quitPressed evts
   then return ()
   else do seconds <- currentSeconds
-          let newState = modGame as $ \g ->
-                 processEvents evts $ live seconds g
+          ticks <- SDL.getTicks   
+          let newState = processEvents ticks evts $
+                            modGame as $ \g -> live seconds g
           render newState
           SDL.delay 50
           eventLoop newState
@@ -103,37 +122,34 @@ quitPressed evts = any (== SDL.Quit) evts
 
 render :: AppState -> IO ()
 render as = do
-    let surf = surface dc
     SDL.fillRect surf Nothing (SDL.Pixel 0)
 
-    renderField dc $ field g
-    renderFigure dc $ figure g
+    renderField surf $ field g
+    renderFigure surf $ figure g
 
     SDL.flip surf
- where dc = display as
-       g = game as
+ where (g, surf) = (game as, surface as)
 
 
-renderField :: DisplayContext -> Field -> IO ()
-renderField dc f = forM_ cells (renderCell dc)
+renderField :: SDL.Surface -> Field -> IO ()
+renderField surf f = forM_ cells (renderCell surf)
   where cells = assocs $ fieldMatrix f
 
 
-renderFigure :: DisplayContext -> Figure -> IO ()
-renderFigure dc fig = forM_ cells (renderCell dc)
+renderFigure :: SDL.Surface -> Figure -> IO ()
+renderFigure surf fig = forM_ cells (renderCell surf)
   where cells = zip (map ptData $ figPoints fig)
                     (map Jewel $ figJewels fig)
 
         ptData (Point pRow pCol) = (pRow, pCol)
           
 
-renderCell :: DisplayContext -> ((Int, Int), Cell) -> IO ()
-renderCell dc ((row, col), cell) = do
+renderCell :: SDL.Surface -> ((Int, Int), Cell) -> IO ()
+renderCell surf ((row, col), cell) = do
     color <- SDL.mapRGB pixf clRed clGreen clBlue
     SDL.fillRect surf (Just $ SDL.Rect x y w h) color
     return ()
-  where surf = surface dc
-        pixf = pixFormat dc
+  where pixf = SDL.surfaceGetPixelFormat surf
         x = (col - 1) * w
         y = (row - 1) * h
         w = 30
