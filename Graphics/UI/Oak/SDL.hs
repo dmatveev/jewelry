@@ -3,6 +3,8 @@
 module Graphics.UI.Oak.SDL where
 
 import Graphics.UI.Oak.Basics
+import Graphics.UI.Oak.Classes
+import Graphics.UI.Oak.Widgets
 
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
@@ -60,10 +62,20 @@ collectSDLEvents = reverse `liftM` (collect' [])
           else collect' $ event : es
 
 
+keySymToEvt :: SDL.Keysym -> Maybe Key
+keySymToEvt (SDL.Keysym k _ _) = lookup k table
+  where table = [ (SDL.SDLK_LEFT,  ArrowLeft)
+                , (SDL.SDLK_RIGHT, ArrowRight)
+                , (SDL.SDLK_DOWN,  ArrowDown)
+                , (SDL.SDLK_UP,    ArrowUp)
+                ]
+
+
 toEvent :: SDL.Event -> Maybe Event
 toEvent e = case e of
-  SDL.Quit  -> Just Quit
-  otherwise -> Nothing
+  SDL.Quit        -> Just Quit
+  (SDL.KeyDown k) -> liftM KeyDown $ keySymToEvt k
+  otherwise       -> Nothing
 
 
 getSDLEvents :: Frontend [Event]
@@ -76,31 +88,45 @@ center :: Rect -> Size -> Rect
 center (Rect x y (Size w h)) sz@(Size a b) = Rect xc yc sz
   where xc = x + (w - a) `div` 2
         yc = y + (h - b) `div` 2
-  
+
+        
+toRect :: Rect -> SDL.Rect
+toRect (Rect x y (Size w h)) = SDL.Rect x y w h
+
+
 renderString :: String -> Rect -> Frontend ()
-renderString s (Rect x y (Size w h)) = do
+renderString s rc = do
   surf <- liftIO $ SDL.getVideoSurface
   fnt  <- liftM fromJust $ gets font
   text <- liftIO $ TTF.renderTextBlended fnt s (SDL.Color 255 255 255)
-  liftIO $ SDL.blitSurface text Nothing surf (Just $ SDL.Rect x y w h)
+  liftIO $ SDL.blitSurface text Nothing surf (Just $ toRect rc)
   return ()
 
 
-renderSDL :: Widget idt -> Rect -> Frontend ()
+renderRect :: Rect -> (Int, Int, Int) -> Frontend ()
+renderRect rc (r, g, b) = do
+  surf <- liftIO $ SDL.getVideoSurface
+  let pixf = SDL.surfaceGetPixelFormat surf
+  liftIO $ do cl <- SDL.mapRGB pixf
+                    (fromIntegral r)
+                    (fromIntegral g)
+                    (fromIntegral b)
+              SDL.fillRect surf (Just $ toRect rc) cl
+  return ()
 
-renderSDL (VBox items) _ =
-  forM_ items $ \(LayoutItem _ w r) -> render w r
+renderButton :: String -> WidgetState -> Rect -> Frontend ()
+renderButton s st rc = do
+    when (st == Focused) $ renderRect rc (0, 128, 255)
+    sz <- textSize s
+    renderString s (rc `center` sz)
 
-renderSDL (HBox items) _ =
-  forM_ items $ \(LayoutItem _ w r) -> render w r
 
-renderSDL (Stretch) _ = return ()
-
-renderSDL (Label s)  rc = renderString s rc
-
-renderSDL (Button s) rc = do
-  sz <- textSize s
-  renderString s (rc `center` sz)
+renderSDL :: Widget idt -> WidgetState -> Rect -> Frontend ()
+renderSDL w st rc = case w of
+  (Label s)  -> renderString s rc
+  (Button s) -> renderButton s st rc
+  otherwise  -> return ()
+  
   
 endIterSDL :: Frontend ()
 endIterSDL = liftIO $ do
