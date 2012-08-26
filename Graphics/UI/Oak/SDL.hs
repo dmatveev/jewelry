@@ -2,15 +2,19 @@
 
 module Graphics.UI.Oak.SDL where
 
+import qualified Graphics.UI.SDL as SDL
+import qualified Graphics.UI.SDL.TTF as TTF
+
+import Control.Monad (forM_)
+import Control.Monad.State
+import Data.Mutators
+import Data.Maybe (fromJust, mapMaybe)
+import Data.List (foldl')
+
 import Graphics.UI.Oak.Basics
 import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets
 
-import qualified Graphics.UI.SDL as SDL
-import qualified Graphics.UI.SDL.TTF as TTF
-import Control.Monad.State
-import Data.Mutators
-import Data.Maybe (fromJust, mapMaybe)
 
 data SurfaceData = SurfaceData {
     fontDesc  :: Font
@@ -64,10 +68,11 @@ collectSDLEvents = reverse `liftM` (collect' [])
 
 keySymToEvt :: SDL.Keysym -> Maybe Key
 keySymToEvt (SDL.Keysym k _ _) = lookup k table
-  where table = [ (SDL.SDLK_LEFT,  ArrowLeft)
-                , (SDL.SDLK_RIGHT, ArrowRight)
-                , (SDL.SDLK_DOWN,  ArrowDown)
-                , (SDL.SDLK_UP,    ArrowUp)
+  where table = [ (SDL.SDLK_LEFT,   ArrowLeft)
+                , (SDL.SDLK_RIGHT,  ArrowRight)
+                , (SDL.SDLK_DOWN,   ArrowDown)
+                , (SDL.SDLK_UP,     ArrowUp)
+                , (SDL.SDLK_RETURN, Return)
                 ]
 
 
@@ -84,8 +89,8 @@ getSDLEvents = do
   return $ mapMaybe toEvent evs
 
 
-center :: Rect -> Size -> Rect
-center (Rect x y (Size w h)) sz@(Size a b) = Rect xc yc sz
+centered :: Rect -> Size -> Rect
+centered (Rect x y (Size w h)) sz@(Size a b) = Rect xc yc sz
   where xc = x + (w - a) `div` 2
         yc = y + (h - b) `div` 2
 
@@ -94,15 +99,25 @@ toRect :: Rect -> SDL.Rect
 toRect (Rect x y (Size w h)) = SDL.Rect x y w h
 
 
+renderLine :: String -> Rect -> Frontend ()
+renderLine line rc = do
+    surf <- liftIO $ SDL.getVideoSurface
+    fnt  <- liftM fromJust $ gets font
+    text <- liftIO $ TTF.renderTextBlended fnt line cl
+    liftIO $ SDL.blitSurface text Nothing surf (Just $ toRect rc)
+    return ()
+  where cl = SDL.Color 255 255 255
+
+
 renderString :: String -> Rect -> Frontend ()
-renderString s rc = do
-  surf <- liftIO $ SDL.getVideoSurface
-  fnt  <- liftM fromJust $ gets font
-  text <- liftIO $ TTF.renderTextBlended fnt s (SDL.Color 255 255 255)
-  liftIO $ SDL.blitSurface text Nothing surf (Just $ toRect rc)
-  return ()
-
-
+renderString str (Rect x y _) = do
+  let ls = lines str
+  sizes <- mapM getSDLLineSize ls
+  let ys = scanl (+) y $ map snd sizes
+  forM_ (zip3 ls ys sizes) $ \(l, y', (w, h)) ->
+    renderLine l (Rect x y' (Size w h))
+  
+    
 renderRect :: Rect -> (Int, Int, Int) -> Frontend ()
 renderRect rc (r, g, b) = do
   surf <- liftIO $ SDL.getVideoSurface
@@ -114,17 +129,20 @@ renderRect rc (r, g, b) = do
               SDL.fillRect surf (Just $ toRect rc) cl
   return ()
 
+blue = (0, 128, 255)
+
 renderButton :: String -> WidgetState -> Rect -> Frontend ()
 renderButton s st rc = do
-    when (st == Focused) $ renderRect rc (0, 128, 255)
+    when (st == Focused) $ renderRect rc blue
     sz <- textSize s
-    renderString s (rc `center` sz)
+    renderString s (rc `centered` sz)
 
 
 renderSDL :: Widget idt -> WidgetState -> Rect -> Frontend ()
 renderSDL w st rc = case w of
-  (Label s)  -> renderString s rc
-  (Button s) -> renderButton s st rc
+  (Label s)    -> renderString s rc
+  (Button s)   -> renderButton s st rc
+  (Line i)     -> renderRect rc blue
   otherwise  -> return ()
   
   
@@ -142,11 +160,19 @@ instance MonadFrontend Frontend where
   render = renderSDL
   endIter = endIterSDL
 
-getSDLTextSize :: String -> Frontend Size
-getSDLTextSize s = do
+
+getSDLLineSize :: String -> Frontend (Int, Int)
+getSDLLineSize line = do
   mfnt <- gets font
-  (w, h) <- liftIO $ TTF.textSize (fromJust mfnt) s
-  return $ Size w h
+  liftIO $ TTF.textSize (fromJust mfnt) line
+  
+getSDLTextSize :: String -> Frontend Size
+getSDLTextSize str = do
+  mfnt <- gets font
+  sizes <- mapM getSDLLineSize $ lines str
+  let width  = foldl' max 0 $ map fst sizes
+      height = foldl' (+) 0 $ map snd sizes
+  return $ Size width height
 
 
 getSDLSurfSize :: Frontend Size
