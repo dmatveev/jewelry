@@ -16,33 +16,35 @@ import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets
 
 
-data SurfaceData = SurfaceData {
+data FrontendConfig u = FrontendConfig {
     fontDesc  :: Font
   , size      :: Size
   , title     :: String
   , font      :: Maybe TTF.Font
+  , userData  :: u
   } deriving (Eq, Show)
 
-genMutators ''SurfaceData
+genMutators ''FrontendConfig
 
 
-createSurface :: String -> Font -> Size -> SurfaceData
-createSurface sTitle sFont sSize =
-  SurfaceData { title     = sTitle
-              , fontDesc  = sFont
-              , size      = sSize
-              , font      = Nothing
-              }
+fConfig :: String -> Font -> Size -> u -> FrontendConfig u
+fConfig sTitle sFont sSize uData =
+  FrontendConfig { title     = sTitle
+                 , fontDesc  = sFont
+                 , size      = sSize
+                 , font      = Nothing
+                 , userData  = uData
+                 }
   
 
-newtype Frontend a = Frontend (StateT SurfaceData IO a)
+newtype Frontend u a = Frontend (StateT (FrontendConfig u) IO a)
                        deriving ( Monad
                                 , MonadIO
-                                , MonadState SurfaceData
+                                , MonadState (FrontendConfig u)
                                 )
 
 
-initSDL :: Frontend ()
+initSDL :: Frontend u ()
 initSDL = do
   (Size w h) <- gets size
   (Font fntName fntSz) <- gets fontDesc
@@ -73,6 +75,7 @@ keySymToEvt (SDL.Keysym k _ _) = lookup k table
                 , (SDL.SDLK_DOWN,   ArrowDown)
                 , (SDL.SDLK_UP,     ArrowUp)
                 , (SDL.SDLK_RETURN, Return)
+                , (SDL.SDLK_SPACE,  SpaceKey)
                 ]
 
 
@@ -83,7 +86,7 @@ toEvent e = case e of
   otherwise       -> Nothing
 
 
-getSDLEvents :: Frontend [Event]
+getSDLEvents :: Frontend u [Event]
 getSDLEvents = do
   evs <- liftIO collectSDLEvents
   return $ mapMaybe toEvent evs
@@ -99,7 +102,7 @@ toRect :: Rect -> SDL.Rect
 toRect (Rect x y (Size w h)) = SDL.Rect x y w h
 
 
-renderLine :: String -> Rect -> Frontend ()
+renderLine :: String -> Rect -> Frontend u ()
 renderLine line rc = do
     surf <- liftIO $ SDL.getVideoSurface
     fnt  <- liftM fromJust $ gets font
@@ -109,7 +112,7 @@ renderLine line rc = do
   where cl = SDL.Color 255 255 255
 
 
-renderString :: String -> Rect -> Frontend ()
+renderString :: String -> Rect -> Frontend u ()
 renderString str (Rect x y _) = do
   let ls = lines str
   sizes <- mapM getSDLLineSize ls
@@ -118,7 +121,7 @@ renderString str (Rect x y _) = do
     renderLine l (Rect x y' (Size w h))
   
     
-renderRect :: Rect -> (Int, Int, Int) -> Frontend ()
+renderRect :: Rect -> (Int, Int, Int) -> Frontend u ()
 renderRect rc (r, g, b) = do
   surf <- liftIO $ SDL.getVideoSurface
   let pixf = SDL.surfaceGetPixelFormat surf
@@ -131,14 +134,14 @@ renderRect rc (r, g, b) = do
 
 blue = (0, 128, 255)
 
-renderButton :: String -> WidgetState -> Rect -> Frontend ()
+renderButton :: String -> WidgetState -> Rect -> Frontend u ()
 renderButton s st rc = do
     when (st == Focused) $ renderRect rc blue
     sz <- textSize s
     renderString s (rc `centered` sz)
 
 
-renderSDL :: Widget idt -> WidgetState -> Rect -> Frontend ()
+renderSDL :: Widget i m -> WidgetState -> Rect -> Frontend u ()
 renderSDL w st rc = case w of
   (Label s)    -> renderString s rc
   (Button s)   -> renderButton s st rc
@@ -146,7 +149,7 @@ renderSDL w st rc = case w of
   otherwise  -> return ()
   
   
-endIterSDL :: Frontend ()
+endIterSDL :: Frontend u ()
 endIterSDL = liftIO $ do
   surf <- SDL.getVideoSurface
   SDL.flip surf
@@ -154,19 +157,19 @@ endIterSDL = liftIO $ do
   SDL.fillRect surf Nothing (SDL.Pixel 0)
   return ()
 
-instance MonadFrontend Frontend where
+instance MonadFrontend (Frontend u) where
   initialize = initSDL
   getEvents = getSDLEvents
   render = renderSDL
   endIter = endIterSDL
 
 
-getSDLLineSize :: String -> Frontend (Int, Int)
+getSDLLineSize :: String -> Frontend u (Int, Int)
 getSDLLineSize line = do
   mfnt <- gets font
   liftIO $ TTF.textSize (fromJust mfnt) line
   
-getSDLTextSize :: String -> Frontend Size
+getSDLTextSize :: String -> Frontend u Size
 getSDLTextSize str = do
   mfnt <- gets font
   sizes <- mapM getSDLLineSize $ lines str
@@ -175,14 +178,14 @@ getSDLTextSize str = do
   return $ Size width height
 
 
-getSDLSurfSize :: Frontend Size
+getSDLSurfSize :: Frontend u Size
 getSDLSurfSize = return =<< gets size
 
 
-instance MonadSurface Frontend where
+instance MonadSurface (Frontend u) where
   textSize = getSDLTextSize
   surfSize = getSDLSurfSize
 
 
-runSDLFrontend :: Frontend a -> SurfaceData -> IO a
+runSDLFrontend :: Frontend u a -> FrontendConfig u -> IO a
 runSDLFrontend (Frontend stt) sf = evalStateT stt sf

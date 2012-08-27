@@ -1,4 +1,4 @@
-module Field
+module Game.Jewelry.Field
        (
          Field(..)
        , mkField
@@ -16,7 +16,7 @@ module Field
        ) where
 
 import Data.Array
-import Basics
+import Game.Jewelry.Basics
 
 newtype Field = Field { fieldMatrix :: (Array (Int, Int) Cell) }
               deriving (Show)

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Figure
+module Game.Jewelry.Figure
        (
          Figure(..)
 
@@ -17,8 +17,8 @@ module Figure
 
 import Data.Mutators
 
-import Basics
-import Point
+import Game.Jewelry.Basics
+import Game.Jewelry.Point
 
 
 data Figure = Figure {

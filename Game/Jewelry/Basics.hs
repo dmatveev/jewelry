@@ -1,4 +1,4 @@
-module Basics where
+module Game.Jewelry.Basics where
 
 data Jewel = Cherry
            | Green

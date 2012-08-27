@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Game where
+module Game.Jewelry where
 
 import Data.List (intersperse, groupBy, foldl', nub)
 import Control.Monad (forM_)
@@ -11,10 +11,10 @@ import System.Random
 
 import Data.Mutators
 
-import Basics
-import Point
-import Field
-import Figure
+import Game.Jewelry.Basics
+import Game.Jewelry.Point
+import Game.Jewelry.Field
+import Game.Jewelry.Figure
 
 
 data GameState = Playing | Paused | GameOver

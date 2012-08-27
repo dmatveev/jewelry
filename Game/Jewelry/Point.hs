@@ -1,9 +1,9 @@
-module Point
+module Game.Jewelry.Point
        (
          offsetPoint
        ) where
 
-import Basics
+import Game.Jewelry.Basics
 
 
 instance GameObject Point where
