@@ -76,6 +76,7 @@ keySymToEvt (SDL.Keysym k _ _) = lookup k table
                 , (SDL.SDLK_UP,     ArrowUp)
                 , (SDL.SDLK_RETURN, Return)
                 , (SDL.SDLK_SPACE,  SpaceKey)
+                , (SDL.SDLK_F10,    F10)
                 ]
 
 

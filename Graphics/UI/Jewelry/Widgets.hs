@@ -3,17 +3,19 @@
 module Graphics.UI.Jewelry.Widgets
        (
          jewelry
-       , jwHandlers
        , figureBox
        ) where
 
-import Control.Monad.State
+import Control.Monad (forM_)
+import Control.Monad.State (gets)
+import Control.Monad.Trans (liftIO)
 
 import Data.Array (assocs)
 import Data.Word (Word8)
 
 import qualified Graphics.UI.SDL as SDL
 
+import Graphics.UI.Oak (call)
 import Graphics.UI.Oak.Basics
 import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets
@@ -25,28 +27,11 @@ import Game.Jewelry.Field (Field, fieldMatrix)
 import Game.Jewelry.Figure (Figure, figPoints, figJewels)
 
 
-jwHandlers = [ (KeyDown ArrowLeft,  jwMove ToLeft)
-             , (KeyDown ArrowRight, jwMove ToRight)
-             , (KeyDown ArrowDown,  jwShuffle ToDown)
-             , (KeyDown ArrowUp,    jwShuffle ToUp)
-             , (KeyDown SpaceKey,   jwDropFigure)
-             ]
-
-jwMove :: MonadHandler i (Frontend Game) m => Direction -> m ()
-jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
-
-jwShuffle :: MonadHandler i (Frontend Game) m => Direction -> m ()
-jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
-
-jwDropFigure :: MonadHandler i (Frontend Game) m => m ()
-jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
-
 jewelry = Custom $ WidgetBehavior {
     accFocusFcn = jwAccFocus
   , sizePcyFcn  = jwSizePcy
   , sizeHintFcn = jwSizeHint
   , renderFcn   = jwRender
-  , liveFcn     = jwLive
   }
 
 jwAccFocus :: Bool
@@ -67,13 +52,6 @@ jwRender _ rc = do
                  renderFigure src $ figure g
                  SDL.blitSurface src Nothing dst (Just $ toRect rc)
      return ()
-
-
-jwLive :: Integer -> Frontend Game ()
-jwLive t = modify $ \s -> modUserData s $ \g ->
-  if t - ticks g > 1
-  then moveFigure ToDown $ setTicks g t
-  else g
 
 
 renderField :: SDL.Surface -> Field -> IO ()
@@ -120,7 +98,6 @@ figureBox = Custom $ WidgetBehavior {
   , sizePcyFcn  = const (Fixed, Fixed)
   , sizeHintFcn = const $ return $ Size 30 90
   , renderFcn   = fbRender
-  , liveFcn     = \_ -> return ()
   }
 
 fbRender :: WidgetState -> Rect -> Frontend Game ()

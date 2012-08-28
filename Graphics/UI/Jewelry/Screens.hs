@@ -4,6 +4,7 @@ module Graphics.UI.Jewelry.Screens
          
        , mainScreen
        , gameScreen
+       , gameOverScreen
        , hiscoresScreen
        , aboutScreen
        ) where
@@ -20,10 +21,8 @@ data WidgetId = BtnPlay | BtnFame | BtnAbout | BtnQuit | BtnBack
                 deriving (Eq, Show)
 
 instance Identifier WidgetId where
-  unused = NoName
-
-instance DialogIdentifier WidgetId where
-  backBtn = BtnBack
+  unused  = NoName
+  btnBack = BtnBack
 
 
 mainScreen = center (NoName, mainMenu)
@@ -62,11 +61,16 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                    , "F10: end game"
                    ]
 
+bback = (BtnBack, Button "Back")
 
-hiscoresScreen = dialog "Highscores" $ (NoName, Stretch)
+gameOverScreen = dialog "Game over" [bback] $ (NoName, Stretch)
 
 
-aboutScreen = dialog "About" $ (NoName, center (NoName, Label text))
+hiscoresScreen = dialog "Highscores" [bback] $ (NoName, Stretch)
+
+
+aboutScreen = dialog "About" [bback] $
+              (NoName, center (NoName, Label text))
   where text = unlines
                [ "Written by Dmitry Matveev"
                , "Released under terms of the MIT license"

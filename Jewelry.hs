@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts #-}
 
-import Control.Monad (liftM, forM_)
+import Control.Monad (liftM, forM_, when)
 import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad.State (modify, gets)
 import Data.Array (assocs)
 import Data.List (foldl')
 import Data.Mutators
@@ -22,19 +23,71 @@ import Game.Jewelry
 import Game.Jewelry.Basics
 import Game.Jewelry.Field (Field, fieldMatrix)
 import Game.Jewelry.Figure (Figure, figPoints, figJewels)
-
-
-clicked :: MonadHandler WidgetId mh m => String -> m ()
-clicked s = liftIO $ putStrLn $ s ++ " clicked"
                   
 
-handlers = [ (BtnPlay,  KeyDown Return, open gameScreen)
+handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnFame,  KeyDown Return, open hiscoresScreen)
            , (BtnAbout, KeyDown Return, open aboutScreen)
-           , (BtnQuit,  KeyDown Return, quit)
+           , (BtnQuit,  KeyDown Return, tryQuit)
 
            , (BtnBack,  KeyDown Return, back)
+
+           , (Jewelry, KeyDown ArrowLeft,  jwMove ToLeft)
+           , (Jewelry, KeyDown ArrowRight, jwMove ToRight)
+           , (Jewelry, KeyDown ArrowDown,  jwShuffle ToDown)
+           , (Jewelry, KeyDown ArrowUp,    jwShuffle ToUp)
+           , (Jewelry, KeyDown SpaceKey,   jwDropFigure)
+           , (Jewelry, KeyDown F10,        jwEndGame)
+           , (Jewelry, Live,               jwLive)
            ]
+
+goHandlers = [(BtnBack, KeyDown Return, answer ())]
+
+tryQuit :: MonadHandler WidgetId () (Frontend Game) m => m ()
+tryQuit = do
+    ma <- hlift $ msgBox title text [No, Yes]
+    maybe (return ()) (\a -> when (a == Yes) quit) ma
+  where title = "Quit"
+        text  = "Are you sure you want to quit?"
+
+
+playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
+playNewGame = do
+  seed <- liftIO $ currentSeconds
+  hlift $ modify $ \s -> setUserData s $ mkGame (13, 6) seed
+  open gameScreen
+
+
+jwMove :: MonadHandler i () (Frontend Game) m => Direction -> m ()
+jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
+
+jwShuffle :: MonadHandler i () (Frontend Game) m => Direction -> m ()
+jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
+
+jwDropFigure :: MonadHandler i () (Frontend Game) m => m ()
+jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
+
+jwEndGame :: (Identifier i, MonadHandler i () (Frontend Game) m)
+             => m ()
+jwEndGame = do
+  ma <- hlift $ msgBox
+        "End game"
+        "Are you sure you want to end this game?"
+        [No, Yes]
+  maybe (return ()) (\a -> when (a == Yes) back) ma
+  
+
+jwLive :: (Identifier i, MonadHandler i () (Frontend Game) m)
+          => m ()
+jwLive = do
+  st <- hlift $ gets (state . userData)
+  if st == GameOver
+    then (hlift $ call gameOverScreen goHandlers) >> back
+    else do t <- now
+            hlift $ modify $ \s -> modUserData s $ \g ->
+              if t - ticks g > 1
+              then moveFigure ToDown $ setTicks g t
+              else g
 
 
 main :: IO ()
@@ -47,8 +100,7 @@ main = do
                (Size 640 480)
                game
                
-    runSDLFrontend (runOak mainScreen hs) conf >> return ()
-  where hs = handlers ++ bindHandlers Jewelry jwHandlers
+    runSDLFrontend (runOak mainScreen handlers) conf >> return ()
 
 
 -- keepKbdSpeed :: Word32                           -- current time
