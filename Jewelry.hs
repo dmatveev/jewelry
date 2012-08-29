@@ -42,7 +42,8 @@ handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (Jewelry, Live,                    jwLive)
            ]
 
-goHandlers = [(BtnBack, KeyDown Return, answer ())]
+goHandlers = [ (BtnBack, KeyDown Return, answer ()) ]
+
 
 tryQuit :: MonadHandler WidgetId () (Frontend Game) m => m ()
 tryQuit = do
@@ -94,14 +95,20 @@ jwLive :: MonadHandler WidgetId () (Frontend Game) m
 jwLive = do
   st <- hlift $ gets (state . userData)
   if st == GameOver
-    then (hlift $ call gameOverScreen goHandlers) >> back
+    then do hlift $ do call gameOverScreen  goHandlers
+                       inputBox
+                         "Highscore!"
+                         "You have a highscore! Please enter your name:"
+            back
     else do t <- now
             hlift $ modify $ \s -> modUserData s $ \g ->
               if t - ticks g > 1
               then moveFigure ToDown $ setTicks g t
               else g
             sc <- hlift $ gets (score . userData)
-            alter Score $ \_ -> Label $ "Score: " ++ (show sc)
+            fs <- hlift $ gets (figs  . userData)
+            alter Score   $ \_ -> Label $ "Score: "   ++ (show sc)
+            alter Figures $ \_ -> Label $ "Figures: " ++ (show fs)
 
 
 main :: IO ()

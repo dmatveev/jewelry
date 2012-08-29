@@ -16,8 +16,9 @@ import Graphics.UI.Oak.Widgets
 import Graphics.UI.Jewelry.Widgets (jewelry, figureBox)
 
 data WidgetId = BtnPlay | BtnFame | BtnAbout | BtnQuit | BtnBack
+              | EdtName
               | Jewelry
-              | Score
+              | Score | Figures
               | NoName
                 deriving (Eq, Show)
 
@@ -49,10 +50,10 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                           , (NoName, center (NoName, figureBox))
                           ]
         scoreTable = Compact $
-                     vbox [ (Score,  Label "Score:")
-                          , (NoName, Label "Level:")
-                          , (NoName, Label "Figures:")
-                          , (NoName, Stretch)
+                     vbox [ (Score,   Label "Score:")
+                          , (NoName,  Label "Level:")
+                          , (Figures, Label "Figures:")
+                          , (NoName,  Stretch)
                           ]
         keyHints = unlines
                    [ "Keyboard hints:"
@@ -65,7 +66,6 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
 bback = (BtnBack, Button "Back")
 
 gameOverScreen = dialog "Game over" [bback] $ (NoName, Stretch)
-
 
 hiscoresScreen = dialog "Highscores" [bback] $ (NoName, Stretch)
 

@@ -28,6 +28,7 @@ data Game = Game {
   , field  :: Field
   , ticks  :: Integer
   , score  :: Integer
+  , figs   :: Integer
   , state  :: GameState
   }
                  
@@ -41,6 +42,7 @@ mkGame (rs, cs) seed =
             , figure = generateNewFigure seed
             , ticks = seed
             , score = 0
+            , figs  = 0
             , state = Playing
             }
 
@@ -87,6 +89,7 @@ generateNewFigure seed = Figure pos jewels
 
 throwNewFigure :: Game -> Game
 throwNewFigure game = ensureState game Playing $ \g ->
+  flip modFigs succ $
   setFigure g (generateNewFigure $ ticks game)
 
 

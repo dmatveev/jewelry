@@ -5,11 +5,15 @@ module Graphics.UI.Oak.SDL where
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 
-import Control.Monad (forM_)
-import Control.Monad.State.Strict
+import Data.Char (toUpper)
+import Data.List (foldl')
 import Data.Mutators
 import Data.Maybe (fromJust, mapMaybe)
-import Data.List (foldl')
+
+import Control.Applicative ((<$>))
+import Control.Monad (forM_)
+import Control.Monad.State.Strict
+
 
 import Graphics.UI.Oak.Basics
 import Graphics.UI.Oak.Classes
@@ -24,6 +28,7 @@ data FrontendConfig u = FrontendConfig {
   , userData  :: u
   } deriving (Eq, Show)
 
+genMutators ''Rect
 genMutators ''FrontendConfig
 
 
@@ -69,17 +74,56 @@ collectSDLEvents = reverse `liftM` (collect' [])
 
 
 keySymToEvt :: SDL.Keysym -> Maybe Key
-keySymToEvt (SDL.Keysym k _ _) = lookup k table
-  where table = [ (SDL.SDLK_LEFT,   ArrowLeft)
-                , (SDL.SDLK_RIGHT,  ArrowRight)
-                , (SDL.SDLK_DOWN,   ArrowDown)
-                , (SDL.SDLK_UP,     ArrowUp)
-                , (SDL.SDLK_RETURN, Return)
-                , (SDL.SDLK_SPACE,  SpaceKey)
-                , (SDL.SDLK_F10,    F10)
-                , (SDL.SDLK_p,      Character 'p')
+keySymToEvt (SDL.Keysym k ms _) = pp <$> lookup k table
+  where table = [ (SDL.SDLK_LEFT,      ArrowLeft)
+                , (SDL.SDLK_RIGHT,     ArrowRight)
+                , (SDL.SDLK_DOWN,      ArrowDown)
+                , (SDL.SDLK_UP,        ArrowUp)
+                , (SDL.SDLK_RETURN,    Return)
+                , (SDL.SDLK_SPACE,     SpaceKey)
+                , (SDL.SDLK_F10,       F10)
+                , (SDL.SDLK_a,         Character 'a')
+                , (SDL.SDLK_b,         Character 'b')
+                , (SDL.SDLK_c,         Character 'c')
+                , (SDL.SDLK_d,         Character 'd')
+                , (SDL.SDLK_e,         Character 'e')
+                , (SDL.SDLK_f,         Character 'f')
+                , (SDL.SDLK_g,         Character 'g')
+                , (SDL.SDLK_h,         Character 'h')
+                , (SDL.SDLK_i,         Character 'i')
+                , (SDL.SDLK_j,         Character 'j')
+                , (SDL.SDLK_k,         Character 'k')
+                , (SDL.SDLK_l,         Character 'l')
+                , (SDL.SDLK_m,         Character 'm')
+                , (SDL.SDLK_n,         Character 'n')
+                , (SDL.SDLK_o,         Character 'o')
+                , (SDL.SDLK_p,         Character 'p')
+                , (SDL.SDLK_q,         Character 'q')
+                , (SDL.SDLK_r,         Character 'r')
+                , (SDL.SDLK_s,         Character 's')
+                , (SDL.SDLK_t,         Character 't')
+                , (SDL.SDLK_u,         Character 'u')
+                , (SDL.SDLK_v,         Character 'v')
+                , (SDL.SDLK_w,         Character 'w')
+                , (SDL.SDLK_x,         Character 'x')
+                , (SDL.SDLK_y,         Character 'y')
+                , (SDL.SDLK_z,         Character 'z')
+                , (SDL.SDLK_TAB,       Tab)
+                , (SDL.SDLK_HOME,      Home)
+                , (SDL.SDLK_END,       End)
+                , (SDL.SDLK_BACKSPACE, Backspace)
+                , (SDL.SDLK_DELETE,    Delete)
                 ]
+        pp evt = case evt of
+          ch@(Character c) -> if or $ map (flip elem ms) shiftKeys
+                              then Character $ toUpper c
+                              else ch
+          otherwise -> evt
 
+        shiftKeys = [ SDL.KeyModLeftShift
+                    , SDL.KeyModRightShift
+                    , SDL.KeyModCaps
+                    ]
 
 toEvent :: SDL.Event -> Maybe Event
 toEvent e = case e of
@@ -99,6 +143,8 @@ centered (Rect x y (Size w h)) sz@(Size a b) = Rect xc yc sz
   where xc = x + (w - a) `div` 2
         yc = y + (h - b) `div` 2
 
+centered' :: Rect -> Rect -> Rect
+centered' r (Rect _ _ sz) = r `centered` sz
         
 toRect :: Rect -> SDL.Rect
 toRect (Rect x y (Size w h)) = SDL.Rect x y w h
@@ -135,7 +181,9 @@ renderRect rc (r, g, b) = do
               SDL.fillRect surf (Just $ toRect rc) cl
   return ()
 
-blue = (0, 128, 255)
+blue  = (0,   128, 255)
+black = (0,     0,   0)
+white = (255, 255, 255)
 
 renderButton :: String -> WidgetState -> Rect -> Frontend u ()
 renderButton s st rc = do
@@ -144,10 +192,31 @@ renderButton s st rc = do
     renderString s (rc `centered` sz)
 
 
+renderEdit :: String -> Int -> WidgetState -> Rect -> Frontend u ()
+renderEdit text caret st rc = do
+  let rc'  = centered' rc $ modRcSize rc $ \sz -> decrease sz 4 4
+      rc'' = centered' rc $ modRcSize rc $ \sz -> decrease sz 7 7
+      frameCl = if st == Focused then blue else white
+  
+  renderRect rc frameCl
+  renderRect rc' black
+  renderString text rc''
+  
+  when (st == Focused) $ do
+    let ltext = take caret text
+    (Size loffs _) <- textSize ltext
+    let crc = Rect { rcX = rcX rc'' + loffs
+                   , rcY = rcY rc''
+                   , rcSize = Size 2 $ szHeight $ rcSize rc''
+                   }
+    renderRect crc white
+
+
 renderSDL :: Widget i m -> WidgetState -> Rect -> Frontend u ()
 renderSDL w st rc = case w of
   (Label s)    -> renderString s rc
   (Button s)   -> renderButton s st rc
+  (Edit s c)   -> renderEdit s c st rc
   (Line i)     -> renderRect rc blue
   otherwise  -> return ()
   
