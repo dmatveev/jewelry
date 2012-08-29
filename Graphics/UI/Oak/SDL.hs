@@ -6,7 +6,7 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 
 import Control.Monad (forM_)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Mutators
 import Data.Maybe (fromJust, mapMaybe)
 import Data.List (foldl')
@@ -77,6 +77,7 @@ keySymToEvt (SDL.Keysym k _ _) = lookup k table
                 , (SDL.SDLK_RETURN, Return)
                 , (SDL.SDLK_SPACE,  SpaceKey)
                 , (SDL.SDLK_F10,    F10)
+                , (SDL.SDLK_p,      Character 'p')
                 ]
 
 
@@ -108,7 +109,8 @@ renderLine line rc = do
     surf <- liftIO $ SDL.getVideoSurface
     fnt  <- liftM fromJust $ gets font
     text <- liftIO $ TTF.renderTextBlended fnt line cl
-    liftIO $ SDL.blitSurface text Nothing surf (Just $ toRect rc)
+    liftIO $ do SDL.blitSurface text Nothing surf (Just $ toRect rc)
+                SDL.freeSurface text
     return ()
   where cl = SDL.Color 255 255 255
 

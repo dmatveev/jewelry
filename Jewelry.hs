@@ -32,13 +32,14 @@ handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
 
            , (BtnBack,  KeyDown Return, back)
 
-           , (Jewelry, KeyDown ArrowLeft,  jwMove ToLeft)
-           , (Jewelry, KeyDown ArrowRight, jwMove ToRight)
-           , (Jewelry, KeyDown ArrowDown,  jwShuffle ToDown)
-           , (Jewelry, KeyDown ArrowUp,    jwShuffle ToUp)
-           , (Jewelry, KeyDown SpaceKey,   jwDropFigure)
-           , (Jewelry, KeyDown F10,        jwEndGame)
-           , (Jewelry, Live,               jwLive)
+           , (Jewelry, KeyDown ArrowLeft,       jwMove ToLeft)
+           , (Jewelry, KeyDown ArrowRight,      jwMove ToRight)
+           , (Jewelry, KeyDown ArrowDown,       jwShuffle ToDown)
+           , (Jewelry, KeyDown ArrowUp,         jwShuffle ToUp)
+           , (Jewelry, KeyDown SpaceKey,        jwDropFigure)
+           , (Jewelry, KeyDown (Character 'p'), jwPauseGame)
+           , (Jewelry, KeyDown F10,             jwEndGame)
+           , (Jewelry, Live,                    jwLive)
            ]
 
 goHandlers = [(BtnBack, KeyDown Return, answer ())]
@@ -50,13 +51,11 @@ tryQuit = do
   where title = "Quit"
         text  = "Are you sure you want to quit?"
 
-
 playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
 playNewGame = do
   seed <- liftIO $ currentSeconds
   hlift $ modify $ \s -> setUserData s $ mkGame (13, 6) seed
   open gameScreen
-
 
 jwMove :: MonadHandler i () (Frontend Game) m => Direction -> m ()
 jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
@@ -67,10 +66,23 @@ jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
 jwDropFigure :: MonadHandler i () (Frontend Game) m => m ()
 jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
 
+pausingGame :: MonadHandler i () (Frontend Game) m => m a -> m a
+pausingGame act = do
+  r <- act
+  t <- now
+  hlift $ modify $ \s -> modUserData s $ \g -> setTicks g t
+  return r
+  
+
+jwPauseGame :: MonadHandler i () (Frontend Game) m => m ()
+jwPauseGame = pausingGame $ hlift $
+              msgBox "Jewelry" "Game paused" [Ok]
+              >> return ()
+
 jwEndGame :: (Identifier i, MonadHandler i () (Frontend Game) m)
              => m ()
 jwEndGame = do
-  ma <- hlift $ msgBox
+  ma <- pausingGame $ hlift $ msgBox
         "End game"
         "Are you sure you want to end this game?"
         [No, Yes]

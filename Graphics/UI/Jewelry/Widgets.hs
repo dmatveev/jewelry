@@ -51,6 +51,7 @@ jwRender _ rc = do
      liftIO $ do renderField  src $ field g
                  renderFigure src $ figure g
                  SDL.blitSurface src Nothing dst (Just $ toRect rc)
+                 SDL.freeSurface src
      return ()
 
 
