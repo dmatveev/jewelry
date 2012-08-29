@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts #-}
 
-import Control.Monad (liftM, forM_, when)
-import Control.Monad.Trans (MonadIO, liftIO)
-import Control.Monad.State (modify, gets)
 import Data.Array (assocs)
 import Data.List (foldl')
 import Data.Mutators
 import Data.Word (Word8, Word32)
 
+import Control.Monad (liftM, forM_, when)
+import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad.State (modify, gets)
 
 import Graphics.UI.Oak
 import Graphics.UI.Oak.Basics
@@ -89,7 +89,7 @@ jwEndGame = do
   maybe (return ()) (\a -> when (a == Yes) back) ma
   
 
-jwLive :: (Identifier i, MonadHandler i () (Frontend Game) m)
+jwLive :: MonadHandler WidgetId () (Frontend Game) m
           => m ()
 jwLive = do
   st <- hlift $ gets (state . userData)
@@ -100,6 +100,8 @@ jwLive = do
               if t - ticks g > 1
               then moveFigure ToDown $ setTicks g t
               else g
+            sc <- hlift $ gets (score . userData)
+            alter Score $ \_ -> Label $ "Score: " ++ (show sc)
 
 
 main :: IO ()

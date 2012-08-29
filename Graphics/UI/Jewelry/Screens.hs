@@ -17,6 +17,7 @@ import Graphics.UI.Jewelry.Widgets (jewelry, figureBox)
 
 data WidgetId = BtnPlay | BtnFame | BtnAbout | BtnQuit | BtnBack
               | Jewelry
+              | Score
               | NoName
                 deriving (Eq, Show)
 
@@ -48,7 +49,7 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                           , (NoName, center (NoName, figureBox))
                           ]
         scoreTable = Compact $
-                     vbox [ (NoName, Label "Score:")
+                     vbox [ (Score,  Label "Score:")
                           , (NoName, Label "Level:")
                           , (NoName, Label "Figures:")
                           , (NoName, Stretch)

@@ -2,14 +2,16 @@
 
 module Game.Jewelry where
 
+import Data.Array.ST
 import Data.List (intersperse, groupBy, foldl', nub)
+import Data.Mutators
+import Data.STRef
+
+import Control.Applicative ((<$>))
 import Control.Monad (forM_)
 import Control.Monad.ST
-import Data.Array.ST
-import Data.STRef
-import System.Random
 
-import Data.Mutators
+import System.Random
 
 import Game.Jewelry.Basics
 import Game.Jewelry.Point
@@ -17,7 +19,7 @@ import Game.Jewelry.Field
 import Game.Jewelry.Figure
 
 
-data GameState = Playing | Paused | GameOver
+data GameState = Playing | GameOver
                  deriving (Eq, Show)
 
 
@@ -25,7 +27,8 @@ data Game = Game {
     figure :: Figure
   , field  :: Field
   , ticks  :: Integer
-  , state :: GameState
+  , score  :: Integer
+  , state  :: GameState
   }
                  
 
@@ -37,6 +40,7 @@ mkGame (rs, cs) seed =
   Game { field = mkField rs cs
             , figure = generateNewFigure seed
             , ticks = seed
+            , score = 0
             , state = Playing
             }
 
@@ -134,7 +138,7 @@ landFigure game = throwNewFigure $ fireCells $ stampFigure game
 
 canMoveFigure :: Direction -> Game -> Bool
 canMoveFigure d game = (&&) (newTailPos `isInside` fld)
-                          (all (== Empty) targetCells)
+                            (all (== Empty) targetCells)
   where newTailPos = last newFigPoints
         targetCells = map (cellAt fld) $ dropOffscreen newFigPoints
         newFigPoints = figPoints $ fig `moveTo` d
@@ -153,6 +157,19 @@ sameJewel _ _ = False
 firingCells :: [(Point, Cell)] -> [(Point, Cell)]
 firingCells cs = concat $ filter isFiring $ groupBy sameJewel cs
   where isFiring js = length js >= 3
+
+
+afford :: [(Point, Cell)] -> Game -> Game
+afford cs g = if null cs then g else modScore g (+ firedCost)
+  where firedCost = baseCost + sum bonuses
+        bonuses   = (+ cellCost)  <$>
+                    (* bonusCost) <$>
+                    take (numCells - 3) [1, 2..]
+
+        numCells  = length cs
+        cellCost  = 100
+        baseCost  = 3 * cellCost
+        bonusCost = 10
 
 
 dropFiring :: Game -> [(Point, Cell)] -> Game
@@ -180,7 +197,7 @@ dropFiring game cs = runST $ do
                 writeSTRef state $ Just $ Point (emRow - 1) emCol
 
     newArr <- freeze arr
-    return $ game { field = Field newArr }
+    return $ afford cs $ game { field = Field newArr }
   where (rows, cols) = (numRows fld, numCols fld)
         fld = field game
 
@@ -192,8 +209,8 @@ dropFiring game cs = runST $ do
 
 fireCells :: Game -> Game
 fireCells game = let (cells, game') = fireCellsOnce game
-               in if null cells then game'
-                     else fireCells game'
+                 in if null cells then game'
+                    else fireCells game'
 
 
 fireCellsOnce :: Game -> ([(Point, Cell)], Game)
