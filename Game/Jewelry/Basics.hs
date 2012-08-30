@@ -21,6 +21,14 @@ data Direction = ToLeft
 data Point = Point Int Int
              deriving (Eq, Show)
 
+data DifficultyLevel = Classic | Medium | Easy
+                       deriving (Eq, Show)
+
+data GameResult = GameResult {
+  totalScore :: Integer
+  } deriving (Eq, Show)
+
+
 class GameObject a where
   moveInto :: a -> Point -> a
   moveTo   :: a -> Direction -> a

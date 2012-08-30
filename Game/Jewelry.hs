@@ -17,21 +17,20 @@ import Game.Jewelry.Basics
 import Game.Jewelry.Point
 import Game.Jewelry.Field
 import Game.Jewelry.Figure
-
+import Game.Jewelry.HighScore
 
 data GameState = Playing | GameOver
                  deriving (Eq, Show)
 
-
 data Game = Game {
-    figure :: Figure
-  , field  :: Field
-  , ticks  :: Integer
-  , score  :: Integer
-  , figs   :: Integer
-  , state  :: GameState
+    figure  :: Figure
+  , field   :: Field
+  , ticks   :: Integer
+  , score   :: Integer
+  , figs    :: Integer
+  , state   :: GameState
+  , hiscore :: HighScore
   }
-                 
 
 genMutators ''Game
 
@@ -44,6 +43,7 @@ mkGame (rs, cs) seed =
             , score = 0
             , figs  = 0
             , state = Playing
+            , hiscore = highscore
             }
 
 

@@ -23,26 +23,26 @@ import Game.Jewelry
 import Game.Jewelry.Basics
 import Game.Jewelry.Field (Field, fieldMatrix)
 import Game.Jewelry.Figure (Figure, figPoints, figJewels)
-                  
+import Game.Jewelry.HighScore
+
 
 handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
-           , (BtnFame,  KeyDown Return, open hiscoresScreen)
+           , (BtnFame,  KeyDown Return, openHighScores)
            , (BtnAbout, KeyDown Return, open aboutScreen)
            , (BtnQuit,  KeyDown Return, tryQuit)
 
            , (BtnBack,  KeyDown Return, back)
-
-           , (Jewelry, KeyDown ArrowLeft,       jwMove ToLeft)
-           , (Jewelry, KeyDown ArrowRight,      jwMove ToRight)
-           , (Jewelry, KeyDown ArrowDown,       jwShuffle ToDown)
-           , (Jewelry, KeyDown ArrowUp,         jwShuffle ToUp)
-           , (Jewelry, KeyDown SpaceKey,        jwDropFigure)
-           , (Jewelry, KeyDown (Character 'p'), jwPauseGame)
-           , (Jewelry, KeyDown F10,             jwEndGame)
-           , (Jewelry, Live,                    jwLive)
            ]
 
-goHandlers = [ (BtnBack, KeyDown Return, answer ()) ]
+jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       jwMove ToLeft)
+             , (Jewelry, KeyDown ArrowRight,      jwMove ToRight)
+             , (Jewelry, KeyDown ArrowDown,       jwShuffle ToDown)
+             , (Jewelry, KeyDown ArrowUp,         jwShuffle ToUp)
+             , (Jewelry, KeyDown SpaceKey,        jwDropFigure)
+             , (Jewelry, KeyDown (Character 'p'), jwPauseGame)
+             , (Jewelry, KeyDown F10,             jwEndGame)
+             , (Jewelry, Live,                    jwLive)
+             ]
 
 
 tryQuit :: MonadHandler WidgetId () (Frontend Game) m => m ()
@@ -54,20 +54,41 @@ tryQuit = do
 
 playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
 playNewGame = do
-  seed <- liftIO $ currentSeconds
-  hlift $ modify $ \s -> setUserData s $ mkGame (13, 6) seed
-  open gameScreen
+    seed <- liftIO $ currentSeconds
+    hlift $ modify $ \s -> setUserData s $ mkGame (13, 6) seed
+    mgr <- hlift $ call gameScreen jwHandlers
+    maybe (return ()) checkHighScore mgr
+  where checkHighScore gr = do
+          hsc <- hlift $ gets (hiscore . userData)
+          when (isHighScore Classic gr hsc) $ do
+            mname <- hlift $ inputBox
+                     "Congratulations!"
+                     "You have a highcore! Please enter your name:"
+            maybe (return ()) (storeHighScore hsc gr) mname
 
-jwMove :: MonadHandler i () (Frontend Game) m => Direction -> m ()
+        storeHighScore hsc gr name = do
+          hlift $ modify $ \s ->
+            modUserData s $ \g ->
+            setHiscore g $
+            putScore Classic name gr hsc
+
+
+openHighScores :: MonadHandler WidgetId () (Frontend Game) m => m ()
+openHighScores = do
+    hsc <- hlift $ gets (hiscore . userData)
+    liftIO $ putStrLn $ show hsc
+
+          
+jwMove :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
 jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
 
-jwShuffle :: MonadHandler i () (Frontend Game) m => Direction -> m ()
+jwShuffle :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
 jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
 
-jwDropFigure :: MonadHandler i () (Frontend Game) m => m ()
+jwDropFigure :: MonadHandler i GameResult (Frontend Game) m => m ()
 jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
 
-pausingGame :: MonadHandler i () (Frontend Game) m => m a -> m a
+pausingGame :: MonadHandler i GameResult (Frontend Game) m => m a -> m a
 pausingGame act = do
   r <- act
   t <- now
@@ -75,31 +96,28 @@ pausingGame act = do
   return r
   
 
-jwPauseGame :: MonadHandler i () (Frontend Game) m => m ()
+jwPauseGame :: MonadHandler i GameResult (Frontend Game) m => m ()
 jwPauseGame = pausingGame $ hlift $
               msgBox "Jewelry" "Game paused" [Ok]
               >> return ()
 
-jwEndGame :: (Identifier i, MonadHandler i () (Frontend Game) m)
+jwEndGame :: (Identifier i, MonadHandler i GameResult (Frontend Game) m)
              => m ()
 jwEndGame = do
   ma <- pausingGame $ hlift $ msgBox
         "End game"
         "Are you sure you want to end this game?"
         [No, Yes]
-  maybe (return ()) (\a -> when (a == Yes) back) ma
+  maybe (return ()) (\a -> when (a == Yes) quit) ma
   
 
-jwLive :: MonadHandler WidgetId () (Frontend Game) m
+jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m
           => m ()
 jwLive = do
-  st <- hlift $ gets (state . userData)
-  if st == GameOver
-    then do hlift $ do call gameOverScreen  goHandlers
-                       inputBox
-                         "Highscore!"
-                         "You have a highscore! Please enter your name:"
-            back
+  gm <- hlift $ gets userData
+  if state gm == GameOver
+    then do hlift $ do msgBox "Jewelry" "Game over" [Ok]
+            answer $ GameResult $ score gm
     else do t <- now
             hlift $ modify $ \s -> modUserData s $ \g ->
               if t - ticks g > 1

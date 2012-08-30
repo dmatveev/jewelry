@@ -4,7 +4,6 @@ module Graphics.UI.Jewelry.Screens
          
        , mainScreen
        , gameScreen
-       , gameOverScreen
        , hiscoresScreen
        , aboutScreen
        ) where
@@ -64,8 +63,6 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                    ]
 
 bback = (BtnBack, Button "Back")
-
-gameOverScreen = dialog "Game over" [bback] $ (NoName, Stretch)
 
 hiscoresScreen = dialog "Highscores" [bback] $ (NoName, Stretch)
 
