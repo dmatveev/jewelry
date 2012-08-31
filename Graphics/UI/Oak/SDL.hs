@@ -1,4 +1,7 @@
-{-# Language GeneralizedNewtypeDeriving, TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving,
+             TemplateHaskell,
+             FlexibleInstances,
+             MultiParamTypeClasses #-}
 
 module Graphics.UI.Oak.SDL where
 
@@ -229,12 +232,16 @@ endIterSDL = liftIO $ do
   SDL.fillRect surf Nothing (SDL.Pixel 0)
   return ()
 
-instance MonadFrontend (Frontend u) where
+instance MonadFrontend (FrontendConfig u) (Frontend u) where
   initialize = initSDL
   getEvents = getSDLEvents
   render = renderSDL
   endIter = endIterSDL
+  ownData = ownDataSDL
+  runFcn = return runSDLFrontend
 
+ownDataSDL :: Frontend u (FrontendConfig u)
+ownDataSDL = get >>= return
 
 getSDLLineSize :: String -> Frontend u (Int, Int)
 getSDLLineSize line = do
@@ -259,5 +266,7 @@ instance MonadSurface (Frontend u) where
   surfSize = getSDLSurfSize
 
 
-runSDLFrontend :: Frontend u a -> FrontendConfig u -> IO a
-runSDLFrontend (Frontend stt) sf = evalStateT stt sf
+runSDLFrontend :: Frontend u a ->
+                  FrontendConfig u ->
+                  IO (a, FrontendConfig u)
+runSDLFrontend (Frontend stt) sf = runStateT stt sf

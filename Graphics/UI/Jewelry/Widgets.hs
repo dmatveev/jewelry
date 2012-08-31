@@ -15,7 +15,6 @@ import Data.Word (Word8)
 
 import qualified Graphics.UI.SDL as SDL
 
-import Graphics.UI.Oak (call)
 import Graphics.UI.Oak.Basics
 import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets

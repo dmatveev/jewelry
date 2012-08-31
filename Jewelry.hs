@@ -28,7 +28,7 @@ import Game.Jewelry.HighScore
 
 handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnFame,  KeyDown Return, openHighScores)
-           , (BtnAbout, KeyDown Return, open aboutScreen)
+           , (BtnAbout, KeyDown Return, openAboutScreen)
            , (BtnQuit,  KeyDown Return, tryQuit)
 
            , (BtnBack,  KeyDown Return, back)
@@ -47,7 +47,7 @@ jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       jwMove ToLeft)
 
 tryQuit :: MonadHandler WidgetId () (Frontend Game) m => m ()
 tryQuit = do
-    ma <- hlift $ msgBox title text [No, Yes]
+    ma <- msgBox title text [No, Yes]
     maybe (return ()) (\a -> when (a == Yes) quit) ma
   where title = "Quit"
         text  = "Are you sure you want to quit?"
@@ -61,7 +61,7 @@ playNewGame = do
   where checkHighScore gr = do
           hsc <- hlift $ gets (hiscore . userData)
           when (isHighScore Classic gr hsc) $ do
-            mname <- hlift $ inputBox
+            mname <- inputBox
                      "Congratulations!"
                      "You have a highcore! Please enter your name:"
             maybe (return ()) (storeHighScore hsc gr) mname
@@ -78,6 +78,8 @@ openHighScores = do
     hsc <- hlift $ gets (hiscore . userData)
     liftIO $ putStrLn $ show hsc
 
+openAboutScreen :: MonadHandler WidgetId () (Frontend Game) m => m ()
+openAboutScreen = open aboutScreen
           
 jwMove :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
 jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
@@ -88,7 +90,7 @@ jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
 jwDropFigure :: MonadHandler i GameResult (Frontend Game) m => m ()
 jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
 
-pausingGame :: MonadHandler i GameResult (Frontend Game) m => m a -> m a
+pausingGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m a -> m a
 pausingGame act = do
   r <- act
   t <- now
@@ -96,15 +98,15 @@ pausingGame act = do
   return r
   
 
-jwPauseGame :: MonadHandler i GameResult (Frontend Game) m => m ()
-jwPauseGame = pausingGame $ hlift $
+jwPauseGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
+jwPauseGame = pausingGame $ 
               msgBox "Jewelry" "Game paused" [Ok]
               >> return ()
 
-jwEndGame :: (Identifier i, MonadHandler i GameResult (Frontend Game) m)
+jwEndGame :: MonadHandler WidgetId GameResult (Frontend Game) m
              => m ()
 jwEndGame = do
-  ma <- pausingGame $ hlift $ msgBox
+  ma <- pausingGame $ msgBox
         "End game"
         "Are you sure you want to end this game?"
         [No, Yes]
@@ -116,7 +118,7 @@ jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m
 jwLive = do
   gm <- hlift $ gets userData
   if state gm == GameOver
-    then do hlift $ do msgBox "Jewelry" "Game over" [Ok]
+    then do msgBox "Jewelry" "Game over" [Ok]
             answer $ GameResult $ score gm
     else do t <- now
             hlift $ modify $ \s -> modUserData s $ \g ->
@@ -132,15 +134,14 @@ jwLive = do
 main :: IO ()
 main = do
     seed <- currentSeconds
-    let game = mkGame (13, 6) seed
-        conf = fConfig
+    let conf = fConfig
                "Jewelry"
                (Font "LiberationSans-Bold.ttf" 20)
                (Size 640 480)
-               game
+               (mkGame (13, 6) seed)
                
-    runSDLFrontend (runOak mainScreen handlers) conf >> return ()
-
+    runSDLFrontend (initOak mainScreen handlers) conf
+    return ()
 
 -- keepKbdSpeed :: Word32                           -- current time
 --              -> Word32                           -- desired interval
