@@ -34,11 +34,11 @@ handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnBack,  KeyDown Return, back)
            ]
 
-jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       jwMove ToLeft)
-             , (Jewelry, KeyDown ArrowRight,      jwMove ToRight)
+jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       alteringGame $ jwMove ToLeft)
+             , (Jewelry, KeyDown ArrowRight,      alteringGame $ jwMove ToRight)
              , (Jewelry, KeyDown ArrowDown,       jwShuffle ToDown)
              , (Jewelry, KeyDown ArrowUp,         jwShuffle ToUp)
-             , (Jewelry, KeyDown SpaceKey,        jwDropFigure)
+             , (Jewelry, KeyDown SpaceKey,        alteringGame $ jwDropFigure)
              , (Jewelry, KeyDown (Character 'p'), jwPauseGame)
              , (Jewelry, KeyDown F10,             jwEndGame)
              , (Jewelry, Live,                    jwLive)
@@ -113,23 +113,37 @@ jwEndGame = do
   maybe (return ()) (\a -> when (a == Yes) quit) ma
   
 
+alteringGame :: MonadHandler WidgetId GameResult (Frontend Game) m
+                => m () -> m ()
+alteringGame act = do
+    rBefore <- acquireResult
+    act
+    rAfter <- acquireResult
+    updateInfoTable Score   "Score: "   totalScore   rBefore rAfter
+    updateInfoTable Figures "Figures: " totalFigures rBefore rAfter
+
+  where
+    acquireResult = hlift $ gets (result . userData)
+    
+    updateInfoTable i t acc before after = do
+      let current = acc after
+      when (acc before /= current) $ alter i $ \_ -> Label $ t ++ (show current)
+  
+
+
 jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m
           => m ()
 jwLive = do
-  gm <- hlift $ gets userData
-  if state gm == GameOver
-    then do msgBox "Jewelry" "Game over" [Ok]
-            answer $ GameResult $ score gm
-    else do t <- now
-            hlift $ modify $ \s -> modUserData s $ \g ->
-              if t - ticks g > 1
-              then moveFigure ToDown $ setTicks g t
-              else g
-            sc <- hlift $ gets (score . userData)
-            fs <- hlift $ gets (figs  . userData)
-            alter Score   $ \_ -> Label $ "Score: "   ++ (show sc)
-            alter Figures $ \_ -> Label $ "Figures: " ++ (show fs)
-
+    gm <- hlift $ gets userData
+    if state gm == GameOver
+      then do msgBox "Jewelry" "Game over" [Ok]
+              answer $ result gm
+      else alteringGame $ do
+              t <- now
+              hlift $ modify $ \s -> modUserData s $ \g ->
+                if t - ticks g > 1
+                then moveFigure ToDown $ setTicks g t
+                else g
 
 main :: IO ()
 main = do

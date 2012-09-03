@@ -25,9 +25,15 @@ data DifficultyLevel = Classic | Medium | Easy
                        deriving (Eq, Show)
 
 data GameResult = GameResult {
-  totalScore :: Integer
+    totalScore   :: Integer
+  , totalFigures :: Integer
   } deriving (Eq, Show)
 
+gameResult :: GameResult
+gameResult = GameResult {
+    totalScore = 0
+  , totalFigures = 0
+  }
 
 class GameObject a where
   moveInto :: a -> Point -> a

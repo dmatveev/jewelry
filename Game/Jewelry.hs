@@ -26,23 +26,21 @@ data Game = Game {
     figure  :: Figure
   , field   :: Field
   , ticks   :: Integer
-  , score   :: Integer
-  , figs    :: Integer
+  , result  :: GameResult
   , state   :: GameState
   , hiscore :: HighScore
   }
 
 genMutators ''Game
-
+genMutators ''GameResult
 
 mkGame :: (Int, Int) -> Integer -> Game
 mkGame (rs, cs) seed =
   Game { field = mkField rs cs
-            , figure = generateNewFigure seed
-            , ticks = seed
-            , score = 0
-            , figs  = 0
-            , state = Playing
+            , figure  = generateNewFigure seed
+            , ticks   = seed
+            , result  = gameResult
+            , state   = Playing
             , hiscore = highscore
             }
 
@@ -60,8 +58,7 @@ shuffleFigure d game = ensureState game Playing
 dropFigure :: Game -> Game
 dropFigure game = ensureState game Playing $ \g ->
                   if dropPos `isInside` fld
-                  then landFigure
-                       $ modFigure g (\f -> setFigPos f dropPos)
+                  then landFigure $ modFigure g (\f -> setFigPos f dropPos)
                   else setState g GameOver
   where dropPos = Point dropRow fCol
         dropRow = emptyLength - figLength fig + 1
@@ -89,7 +86,7 @@ generateNewFigure seed = Figure pos jewels
 
 throwNewFigure :: Game -> Game
 throwNewFigure game = ensureState game Playing $ \g ->
-  flip modFigs succ $
+  flip modResult (\r -> modTotalFigures r succ) $
   setFigure g (generateNewFigure $ ticks game)
 
 
@@ -163,7 +160,10 @@ firingCells cs = concat $ filter isFiring $ groupBy sameJewel cs
 
 
 afford :: [(Point, Cell)] -> Game -> Game
-afford cs g = if null cs then g else modScore g (+ firedCost)
+afford cs g = if null cs
+              then g
+              else modResult g $ \r -> modTotalScore r (+ firedCost)
+
   where firedCost = baseCost + sum bonuses
         bonuses   = (+ cellCost)  <$>
                     (* bonusCost) <$>

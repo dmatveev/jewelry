@@ -228,7 +228,7 @@ endIterSDL :: Frontend u ()
 endIterSDL = liftIO $ do
   surf <- SDL.getVideoSurface
   SDL.flip surf
-  SDL.delay 30
+  SDL.delay 50
   SDL.fillRect surf Nothing (SDL.Pixel 0)
   return ()
 
