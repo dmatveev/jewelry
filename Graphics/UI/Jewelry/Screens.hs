@@ -38,11 +38,11 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                   , (NoName, Line 3)
                   , (NoName, sideBar)
                   ]
-  where sideBar = vbox [ (NoName, nextFigure)
+  where sideBar = vbox [ (NoName, margin 10 $ (NoName, nextFigure))
                        , (NoName, Line 3)
-                       , (NoName, scoreTable)
+                       , (NoName, margin 10 $ (NoName, scoreTable))
                        , (NoName, Line 3)
-                       , (NoName, Label keyHints)
+                       , (NoName, margin 10 $ (NoName, Label keyHints))
                        ]
         nextFigure = Compact $
                      vbox [ (NoName, Label "Next figure:")

@@ -3,7 +3,7 @@
 module Game.Jewelry where
 
 import Data.Array.ST
-import Data.List (intersperse, groupBy, foldl', nub)
+import Data.List (groupBy, foldl', nub)
 import Data.Mutators
 import Data.STRef
 
@@ -37,12 +37,12 @@ genMutators ''GameResult
 mkGame :: (Int, Int) -> Integer -> Game
 mkGame (rs, cs) seed =
   Game { field = mkField rs cs
-            , figure  = generateNewFigure seed
-            , ticks   = seed
-            , result  = gameResult
-            , state   = Playing
-            , hiscore = highscore
-            }
+       , figure  = generateNewFigure seed
+       , ticks   = seed
+       , result  = gameResult
+       , state   = Playing
+       , hiscore = highscore
+       }
 
 
 ensureState :: Game -> GameState -> (Game -> Game) -> Game
@@ -226,28 +226,3 @@ fireCellsOnce game = (foundCells, dropFiring game foundCells)
         allCols = fieldCols fld
         (diagsL, diagsR) = fieldDiags fld
         fld = field game
-
-
-printedState :: Game -> String
-printedState game  = concat $ intersperse "\n" $ rowStrings
-  where rowStrings = map strfyRow [1..rs]
-        strfyRow i = concat $ map (strfyCell i) [1..cs]
-        strfyCell i j = let pt = Point i j
-                        in if pt `inside` fig
-                           then printed $ fig `jewelAt` pt
-                           else strfy $ fld `cellAt` pt
-
-        strfy (Jewel c) = printed c
-        strfy Empty = "_"
-
-        printed Cherry = "c"
-        printed Green  = "g"
-        printed Blue   = "b"
-        printed Orange = "o"
-        printed Purple = "p"
-        printed Grape  = "g"
-
-        rs = numRows fld
-        cs = numCols fld
-        fld = field game
-        fig = figure game

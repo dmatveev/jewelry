@@ -99,8 +99,7 @@ pausingGame act = do
   
 
 jwPauseGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
-jwPauseGame = pausingGame $ 
-              msgBox "Jewelry" "Game paused" [Ok]
+jwPauseGame = pausingGame $ msgBox "Jewelry" "Game paused" [Ok]
               >> return ()
 
 jwEndGame :: MonadHandler WidgetId GameResult (Frontend Game) m
@@ -131,8 +130,7 @@ alteringGame act = do
   
 
 
-jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m
-          => m ()
+jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
 jwLive = do
     gm <- hlift $ gets userData
     if state gm == GameOver
@@ -154,7 +152,7 @@ main = do
                (Size 640 480)
                (mkGame (13, 6) seed)
                
-    runSDLFrontend (initOak mainScreen handlers) conf
+    runSDLFrontend (runOak mainScreen handlers) conf
     return ()
 
 -- keepKbdSpeed :: Word32                           -- current time
