@@ -29,7 +29,6 @@ import Game.Jewelry.HighScore
 
 scoreFile = "scores"
 
-
 handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnFame,  KeyDown Return, openHighScores)
            , (BtnAbout, KeyDown Return, openAboutScreen)

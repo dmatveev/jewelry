@@ -23,12 +23,13 @@ data GameState = Playing | GameOver
                  deriving (Eq, Show)
 
 data Game = Game {
-    figure  :: Figure
-  , field   :: Field
-  , ticks   :: Integer
-  , result  :: GameResult
-  , state   :: GameState
-  , hiscore :: HighScore
+    figure     :: Figure
+  , nextFigure :: Figure
+  , field      :: Field
+  , ticks      :: Integer
+  , result     :: GameResult
+  , state      :: GameState
+  , hiscore    :: HighScore
   }
 
 genMutators ''Game
@@ -36,12 +37,13 @@ genMutators ''GameResult
 
 mkGame :: (Int, Int) -> Integer -> Game
 mkGame (rs, cs) seed =
-  Game { field = mkField rs cs
-       , figure  = generateNewFigure seed
-       , ticks   = seed
-       , result  = gameResult
-       , state   = Playing
-       , hiscore = highscore
+  Game { field      = mkField rs cs
+       , figure     = generateNewFigure seed
+       , nextFigure = generateNewFigure $ succ seed
+       , ticks      = seed
+       , result     = gameResult
+       , state      = Playing
+       , hiscore    = highscore
        }
 
 
@@ -87,7 +89,8 @@ generateNewFigure seed = Figure pos jewels
 throwNewFigure :: Game -> Game
 throwNewFigure game = ensureState game Playing $ \g ->
   flip modResult (\r -> modTotalFigures r succ) $
-  setFigure g (generateNewFigure $ ticks game)
+  flip setNextFigure (generateNewFigure $ ticks game) $
+  setFigure g (nextFigure g)
 
 
 moveFigure :: Direction -> Game -> Game

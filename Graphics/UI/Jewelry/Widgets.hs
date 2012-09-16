@@ -83,7 +83,7 @@ renderCell surf ((row, col), cell) = do
 
 colorForCell :: Cell -> (Word8, Word8, Word8)
 colorForCell Empty = (60, 60, 60)
-colorForCell (Jewel j) =
+colorForCell (Jewel j) = 
   case j of
     Cherry -> (228,   0,  88)
     Green  -> ( 76, 220,  72)
@@ -93,12 +93,20 @@ colorForCell (Jewel j) =
     Grape  -> (252, 116,  96)
 
 
-figureBox = Custom $ WidgetBehavior {
-    accFocusFcn   = False
+figureBox :: (Game -> Figure) -> Widget i (Frontend Game)
+figureBox acc = Custom $ WidgetBehavior {
+    accFocusFcn = False
   , sizePcyFcn  = const (Fixed, Fixed)
   , sizeHintFcn = const $ return $ Size 30 90
-  , renderFcn   = fbRender
+  , renderFcn   = fbRender acc
   }
 
-fbRender :: WidgetState -> Rect -> Frontend Game ()
-fbRender _ _ = return ()
+fbRender :: (Game -> Figure) -> WidgetState -> Rect -> Frontend Game ()
+fbRender acc _ rc = do
+  nfg <- gets (acc . userData)
+  dst <- liftIO $ SDL.getVideoSurface
+  src <- liftIO $ SDL.createRGBSurface [] 100 100 32 0 0 0 0
+  liftIO $ do renderFigure src $ nfg `moveInto` (Point 1 1)
+              SDL.blitSurface src Nothing dst (Just $ toRect rc)
+              SDL.freeSurface src
+  return ()

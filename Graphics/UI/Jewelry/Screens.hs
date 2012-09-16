@@ -15,6 +15,7 @@ import Control.Applicative ((<$>))
 import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets
 
+import Game.Jewelry
 import Game.Jewelry.Basics
 import Game.Jewelry.HighScore
 
@@ -44,10 +45,12 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                   , (NoName, Line 3)
                   , (NoName, sideBar)
                   ]
-  where sideBar = vgrid [nextFigure, scoreTable, keyHints]
-        nextFigure = compact $ vbox
-                     [ (NoName, Label "Next figure:")
-                     , (NoName, center (NoName, figureBox))
+  where sideBar = vgrid [figureNext, scoreTable, keyHints]
+        figureNext = compact $ table
+                     [ [ (NoName, Label "This figure:"), (NoName, Label "Next figure:") ]
+                     , [ (NoName, center (NoName, figureBox figure))
+                       , (NoName, center (NoName, figureBox nextFigure))
+                       ]
                      ]
         scoreTable = compact $ table
                      [ [(NoName,  Label "Score:"),   (Score,   Label "0")]
