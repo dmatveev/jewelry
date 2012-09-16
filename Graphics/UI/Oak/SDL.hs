@@ -221,7 +221,7 @@ renderSDL w st rc = case w of
   (Button s)   -> renderButton s st rc
   (Edit s c)   -> renderEdit s c st rc
   (Line i)     -> renderRect rc blue
-  otherwise  -> return ()
+  otherwise    -> return ()
   
   
 endIterSDL :: Frontend u ()

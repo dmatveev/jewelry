@@ -2,6 +2,7 @@
 
 import Data.Array (assocs)
 import Data.List (foldl')
+import Data.Maybe (fromJust)
 import Data.Mutators
 import Data.Word (Word8, Word32)
 
@@ -24,6 +25,9 @@ import Game.Jewelry.Basics
 import Game.Jewelry.Field (Field, fieldMatrix)
 import Game.Jewelry.Figure (Figure, figPoints, figJewels)
 import Game.Jewelry.HighScore
+
+
+scoreFile = "scores"
 
 
 handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
@@ -52,31 +56,40 @@ tryQuit = do
   where title = "Quit"
         text  = "Are you sure you want to quit?"
 
+checkHighScore :: MonadHandler WidgetId () (Frontend Game) m =>
+                  GameResult -> m ()
+checkHighScore gr = do
+    hsc <- hlift $ gets (hiscore . userData)
+    when (isHighScore Classic gr hsc) $ do
+      mname <- inputBox
+               "Congratulations!"
+               "You have a highcore! Please enter your name:"
+      hlift $ maybe (return ()) (storeHighScore gr) mname
+      openHighScores
+
+
+storeHighScore :: GameResult -> String -> Frontend Game ()
+storeHighScore gr name = do
+  modify $ \s ->
+    modUserData s $ \g ->
+    modHiscore g $ putScore Classic name gr
+  sc <- gets (hiscore . userData)
+  liftIO $ storeScore sc scoreFile
+
+  
 playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
 playNewGame = do
     seed <- liftIO $ currentSeconds
-    hlift $ modify $ \s -> setUserData s $ mkGame (13, 6) seed
+    hscs <- hlift $ gets (hiscore . userData)
+    hlift $ modify $ \s ->
+      setUserData s $ setHiscore (mkGame (13, 6) seed) hscs
     mgr <- hlift $ call gameScreen jwHandlers
     maybe (return ()) checkHighScore mgr
-  where checkHighScore gr = do
-          hsc <- hlift $ gets (hiscore . userData)
-          when (isHighScore Classic gr hsc) $ do
-            mname <- inputBox
-                     "Congratulations!"
-                     "You have a highcore! Please enter your name:"
-            maybe (return ()) (storeHighScore hsc gr) mname
-
-        storeHighScore hsc gr name = do
-          hlift $ modify $ \s ->
-            modUserData s $ \g ->
-            setHiscore g $
-            putScore Classic name gr hsc
 
 
 openHighScores :: MonadHandler WidgetId () (Frontend Game) m => m ()
-openHighScores = do
-    hsc <- hlift $ gets (hiscore . userData)
-    liftIO $ putStrLn $ show hsc
+openHighScores = (hlift $ gets (hiscore . userData))
+                 >>= (open . hiscoresScreen)
 
 openAboutScreen :: MonadHandler WidgetId () (Frontend Game) m => m ()
 openAboutScreen = open aboutScreen
@@ -97,7 +110,6 @@ pausingGame act = do
   hlift $ modify $ \s -> modUserData s $ \g -> setTicks g t
   return r
   
-
 jwPauseGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
 jwPauseGame = pausingGame $ msgBox "Jewelry" "Game paused" [Ok]
               >> return ()
@@ -105,11 +117,12 @@ jwPauseGame = pausingGame $ msgBox "Jewelry" "Game paused" [Ok]
 jwEndGame :: MonadHandler WidgetId GameResult (Frontend Game) m
              => m ()
 jwEndGame = do
-  ma <- pausingGame $ msgBox
-        "End game"
-        "Are you sure you want to end this game?"
-        [No, Yes]
-  maybe (return ()) (\a -> when (a == Yes) quit) ma
+    ma <- pausingGame $ msgBox
+          "End game"
+          "Are you sure you want to end this game?"
+          [No, Yes]
+    maybe (return ()) (\a -> when (a == Yes) quitGame) ma
+  where quitGame = (hlift $ gets (result . userData)) >>= answer 
   
 
 alteringGame :: MonadHandler WidgetId GameResult (Frontend Game) m
@@ -118,17 +131,16 @@ alteringGame act = do
     rBefore <- acquireResult
     act
     rAfter <- acquireResult
-    updateInfoTable Score   "Score: "   totalScore   rBefore rAfter
-    updateInfoTable Figures "Figures: " totalFigures rBefore rAfter
+    updateInfoTable Score   totalScore   rBefore rAfter
+    updateInfoTable Figures totalFigures rBefore rAfter
 
   where
     acquireResult = hlift $ gets (result . userData)
     
-    updateInfoTable i t acc before after = do
+    updateInfoTable i acc before after = do
       let current = acc after
-      when (acc before /= current) $ alter i $ \_ -> Label $ t ++ (show current)
+      when (acc before /= current) $ alter i $ \_ -> Label $ show current
   
-
 
 jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
 jwLive = do
@@ -143,42 +155,18 @@ jwLive = do
                 then moveFigure ToDown $ setTicks g t
                 else g
 
+
 main :: IO ()
 main = do
     seed <- currentSeconds
-    let conf = fConfig
+    score <- loadScore scoreFile
+      
+    let game = mkGame (13, 6) seed
+        conf = fConfig
                "Jewelry"
                (Font "LiberationSans-Bold.ttf" 20)
                (Size 640 480)
-               (mkGame (13, 6) seed)
+               (maybe game (setHiscore game) score)
                
     runSDLFrontend (runOak mainScreen handlers) conf
     return ()
-
--- keepKbdSpeed :: Word32                           -- current time
---              -> Word32                           -- desired interval
---              -> (AppState -> Word32)             -- kbd time getter
---              -> (AppState -> Word32 -> AppState) -- kbd time setter
---              -> (AppState -> AppState)           -- app state action
---              -> AppState                         -- initial app state
---              -> AppState
--- keepKbdSpeed ticks interval getter setter f as =
---   let elapsed = ticks - getter as
---   in if elapsed > interval
---      then f $ setter as ticks
---      else as
-
-
--- handleKbd :: Word32 -> SDL.Keysym -> AppState -> AppState
--- handleKbd ticks (SDL.Keysym k _ _) as = case k of
---     SDLK_LEFT  -> defWard $ moveFigure ToLeft
---     SDLK_RIGHT -> defWard $ moveFigure ToRight
---     SDLK_DOWN  -> defWard $ shuffleFigure ToDown
---     SDLK_UP    -> defWard $ shuffleFigure ToUp
---     SDLK_SPACE -> spcWard $ dropFigure
---     otherwise  -> as
---   where
---     wrapper f i s g = keepKbdSpeed ticks i s g (mutator f) as
---     mutator f as = modGame as f
---     defWard f = wrapper f 100 lastMoveKbd setLastMoveKbd
---     spcWard f = wrapper f 500 lastDropKbd setLastDropKbd

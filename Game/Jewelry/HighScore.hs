@@ -6,10 +6,19 @@ module Game.Jewelry.HighScore
        , isHighScore
        , scoreEntries
        , putScore
+
+       , loadScore
+       , storeScore
        ) where
 
-import Data.List (sortBy, foldl)
 import Data.Maybe (maybe)
+import Data.List (sortBy, foldl)
+import System.IO (hSetBinaryMode, withFile, IOMode(..))
+import Control.Exception (handle, evaluate, SomeException)
+import Control.Monad (liftM)
+import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Codec.Compression.Zlib as Z
+
 
 import Game.Jewelry.Basics (GameResult(..), DifficultyLevel(..))
 
@@ -17,11 +26,11 @@ import Game.Jewelry.Basics (GameResult(..), DifficultyLevel(..))
 data FameEntry = FameEntry {
     player  :: String
   , results :: GameResult
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 newtype HighScore = HighScore {
   scoreEntries :: [(DifficultyLevel, [FameEntry])]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 highscore :: HighScore
 highscore = HighScore [ (Classic, [])
@@ -30,7 +39,7 @@ highscore = HighScore [ (Classic, [])
                       ]
 
 tableSize :: Int
-tableSize = 3
+tableSize = 10
 
 isHighScore :: DifficultyLevel ->
                GameResult ->
@@ -41,11 +50,11 @@ isHighScore d gr (HighScore hs) =
     then False
     else maybe False cmp $ lookup d hs
   where cmp fes
-          | null fes  = True
+          | null fes || length fes < tableSize = True
           | otherwise = totalScore gr > totalScore (results $ last fes)
 
 sorted :: [FameEntry] -> [FameEntry]
-sorted fes = sortBy score fes
+sorted fes = reverse $ sortBy score fes
   where score fe1 fe2 = compare
                         (totalScore $ results fe1)
                         (totalScore $ results fe2)
@@ -63,3 +72,21 @@ putScore lvl name res (HighScore hs) = HighScore $ map upd hs
                         then (l, modScore e es)
                         else p
         e = FameEntry name res
+
+
+fallback :: IO a -> SomeException -> IO a
+fallback a _ = a
+
+
+loadScore :: String -> IO (Maybe HighScore)
+loadScore file = handle (fallback $ return Nothing) $ do
+  withFile file ReadMode $ \h -> do
+    hSetBinaryMode h True 
+    z <- B.hGetContents h
+    liftM Just $ evaluate $ read $ B.unpack $ Z.decompress z
+
+
+storeScore :: HighScore -> String -> IO ()
+storeScore hs file = handle (fallback $ return ()) $ do
+  withFile file WriteMode $ \h ->
+    B.hPut h $ Z.compress $ B.pack $ show hs

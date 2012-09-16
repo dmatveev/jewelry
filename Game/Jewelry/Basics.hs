@@ -22,12 +22,12 @@ data Point = Point Int Int
              deriving (Eq, Show)
 
 data DifficultyLevel = Classic | Medium | Easy
-                       deriving (Eq, Show)
+                       deriving (Eq, Show, Read)
 
 data GameResult = GameResult {
     totalScore   :: Integer
   , totalFigures :: Integer
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 gameResult :: GameResult
 gameResult = GameResult {
