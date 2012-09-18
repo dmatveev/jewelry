@@ -3,12 +3,14 @@
 module Game.Jewelry where
 
 import Data.Array.ST
+import Data.Time.Clock
 import Data.List (groupBy, foldl', nub)
 import Data.Mutators
 import Data.STRef
 
 import Control.Applicative ((<$>))
-import Control.Monad (forM_)
+import Control.Monad (forM_, liftM, when)
+import Control.Monad.State (execState, modify, gets)
 import Control.Monad.ST
 
 import System.Random
@@ -26,7 +28,7 @@ data Game = Game {
     figure     :: Figure
   , nextFigure :: Figure
   , field      :: Field
-  , ticks      :: Integer
+  , ticks      :: UTCTime
   , result     :: GameResult
   , state      :: GameState
   , hiscore    :: HighScore
@@ -35,12 +37,16 @@ data Game = Game {
 genMutators ''Game
 genMutators ''GameResult
 
-mkGame :: (Int, Int) -> Integer -> Game
-mkGame (rs, cs) seed =
+secs :: UTCTime -> Integer
+secs = floor . utctDayTime
+
+
+mkGame :: (Int, Int) -> UTCTime -> Game
+mkGame (rs, cs) t =
   Game { field      = mkField rs cs
-       , figure     = generateNewFigure seed
-       , nextFigure = generateNewFigure $ succ seed
-       , ticks      = seed
+       , figure     = generateNewFigure $ secs t
+       , nextFigure = generateNewFigure $ succ $ secs t
+       , ticks      = t
        , result     = gameResult
        , state      = Playing
        , hiscore    = highscore
@@ -76,21 +82,25 @@ dropFigure game = ensureState game Playing $ \g ->
 
 
 generateNewFigure :: Integer -> Figure
-generateNewFigure seed = Figure pos jewels
+generateNewFigure t = Figure pos jewels
   where pos = Point (negate $ pred $ length jewels) 3
         jewels = map (allJewels !!) idxs
         idxs = map (\t -> abs t `mod` length allJewels)
                $ take 3
                $ randoms rndGen
         allJewels = [Cherry, Green, Blue, Orange, Purple, Grape]
-        rndGen = mkStdGen $ fromIntegral seed
+        rndGen = mkStdGen $ fromIntegral t
 
 
 throwNewFigure :: Game -> Game
-throwNewFigure game = ensureState game Playing $ \g ->
-  flip modResult (\r -> modTotalFigures r succ) $
-  flip setNextFigure (generateNewFigure $ ticks game) $
-  setFigure g (nextFigure g)
+throwNewFigure game = ensureState game Playing $ \gs ->
+  flip execState gs $ do
+    modify $ flip setFigure (nextFigure gs)
+    modify $ flip setNextFigure (generateNewFigure $ secs $ ticks game)
+    numFigs <- liftM succ $ gets (totalFigures . result)
+    modify $ flip modResult (flip setTotalFigures numFigs)
+    when (numFigs `mod` 20 == 0) $ do
+      modify $ flip modResult (\r -> modLevel r succ)
 
 
 moveFigure :: Direction -> Game -> Game

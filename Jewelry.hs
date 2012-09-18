@@ -1,20 +1,15 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts #-}
 
-import Data.Array (assocs)
-import Data.List (foldl')
-import Data.Maybe (fromJust)
-import Data.Mutators
-import Data.Word (Word8, Word32)
+import Data.Time.Clock
 
-import Control.Monad (liftM, forM_, when)
-import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad (when)
+import Control.Monad.Trans (liftIO)
 import Control.Monad.State (modify, gets)
 
 import Graphics.UI.Oak
 import Graphics.UI.Oak.Basics
 import Graphics.UI.Oak.Classes
 import Graphics.UI.Oak.Widgets
-import Graphics.UI.Oak.Utils (currentSeconds)
 import Graphics.UI.Oak.SDL
 
 import Graphics.UI.Jewelry.Screens
@@ -22,12 +17,8 @@ import Graphics.UI.Jewelry.Widgets
 
 import Game.Jewelry
 import Game.Jewelry.Basics
-import Game.Jewelry.Field (Field, fieldMatrix)
-import Game.Jewelry.Figure (Figure, figPoints, figJewels)
 import Game.Jewelry.HighScore
 
-
-scoreFile = "scores"
 
 handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnFame,  KeyDown Return, openHighScores)
@@ -73,12 +64,12 @@ storeHighScore gr name = do
     modUserData s $ \g ->
     modHiscore g $ putScore Classic name gr
   sc <- gets (hiscore . userData)
-  liftIO $ storeScore sc scoreFile
+  liftIO $ storeScore sc
 
   
 playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
 playNewGame = do
-    seed <- liftIO $ currentSeconds
+    seed <- liftIO $ getCurrentTime
     hscs <- hlift $ gets (hiscore . userData)
     hlift $ modify $ \s ->
       setUserData s $ setHiscore (mkGame (13, 6) seed) hscs
@@ -105,7 +96,7 @@ jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
 pausingGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m a -> m a
 pausingGame act = do
   r <- act
-  t <- now
+  t <- liftIO getCurrentTime
   hlift $ modify $ \s -> modUserData s $ \g -> setTicks g t
   return r
   
@@ -131,6 +122,7 @@ alteringGame act = do
     act
     rAfter <- acquireResult
     updateInfoTable Score   totalScore   rBefore rAfter
+    updateInfoTable Level   level        rBefore rAfter
     updateInfoTable Figures totalFigures rBefore rAfter
 
   where
@@ -141,24 +133,30 @@ alteringGame act = do
       when (acc before /= current) $ alter i $ \_ -> Label $ show current
   
 
+timeDiffD :: UTCTime -> UTCTime -> Double
+timeDiffD t1 t2 = fromRational $ toRational $ diffUTCTime t1 t2
+
+ticksFor :: Integer -> Double
+ticksFor l = max 0.2 tfl
+  where tfl = 1.0 - (fromInteger l) * 0.05
+
 jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
 jwLive = do
-    gm <- hlift $ gets userData
-    if state gm == GameOver
-      then do msgBox "Jewelry" "Game over" [Ok]
-              answer $ result gm
-      else alteringGame $ do
-              t <- now
-              hlift $ modify $ \s -> modUserData s $ \g ->
-                if t - ticks g > 1
-                then moveFigure ToDown $ setTicks g t
-                else g
+  gm <- hlift $ gets userData
+  if state gm == GameOver
+    then msgBox "Jewelry" "Game over" [Ok] >> answer (result gm)
+    else alteringGame $ do
+      t <- liftIO getCurrentTime
+      hlift $ modify $ \s -> modUserData s $ \g ->
+        if timeDiffD t (ticks g) > (ticksFor $ level $ result g)
+        then moveFigure ToDown $ setTicks g t
+        else g
 
 
 main :: IO ()
 main = do
-    seed <- currentSeconds
-    score <- loadScore scoreFile
+    seed <- getCurrentTime
+    score <- loadScore
       
     let game = mkGame (13, 6) seed
         conf = fConfig

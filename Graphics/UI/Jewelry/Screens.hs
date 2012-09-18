@@ -24,7 +24,7 @@ import Graphics.UI.Jewelry.Widgets (jewelry, figureBox)
 
 data WidgetId = BtnPlay | BtnFame | BtnAbout | BtnQuit | BtnBack
               | EdtName
-              | Jewelry | Score | Figures
+              | Jewelry | Score | Level | Figures
               | NoName
                 deriving (Eq, Show)
 
@@ -54,7 +54,7 @@ gameScreen = hbox [ (NoName, center (Jewelry, jewelry))
                      ]
         scoreTable = compact $ table
                      [ [(NoName,  Label "Score:"),   (Score,   Label "0")]
-                     , [(NoName,  Label "Level:"),   (NoName,  Label "?")]
+                     , [(NoName,  Label "Level:"),   (Level,   Label "0")]
                      , [(NoName,  Label "Figures:"), (Figures, Label "0")]
                      , exprow
                      ]
@@ -78,13 +78,14 @@ hiscoresScreen hsc =
                   , (NoName, Stretch)
                   ]
     )
-  where labels = spaced $ mkLabels ["Name", "Score", "Figures"]
+  where labels = spaced $ mkLabels ["Name", "Score", "Level", "Figures"]
         mkLabels ss = (fmap hexpand $ mkLabel $ head ss) : map mkLabel (tail ss)
         mkLabel a   = (NoName, Label a)
 
         hscws h = map mkRow $ fromJust $ lookup Classic $ scoreEntries h
         mkRow f = spaced $ map mkLabel [ player f
                                        , (show $ totalScore   $ results f)
+                                       , (show $ level        $ results f)
                                        , (show $ totalFigures $ results f)
                                        ]
 

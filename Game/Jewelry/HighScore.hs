@@ -14,8 +14,10 @@ module Game.Jewelry.HighScore
 import Data.Maybe (maybe)
 import Data.List (sortBy, foldl)
 import System.IO (hSetBinaryMode, withFile, IOMode(..))
+import System.Directory (createDirectory, doesDirectoryExist, getAppUserDataDirectory)
+import System.FilePath ((</>))
 import Control.Exception (handle, evaluate, SomeException)
-import Control.Monad (liftM)
+import Control.Monad (liftM, when)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Codec.Compression.Zlib as Z
 
@@ -68,25 +70,35 @@ putScore :: DifficultyLevel ->
             HighScore ->
             HighScore
 putScore lvl name res (HighScore hs) = HighScore $ map upd hs
-  where upd p@(l, es) = if l == lvl
-                        then (l, modScore e es)
-                        else p
+  where upd p@(l, es) = if l == lvl then (l, modScore e es) else p
         e = FameEntry name res
 
 
 fallback :: IO a -> SomeException -> IO a
-fallback a _ = a
+fallback a e = log >> a
+  where log = putStrLn $ "*** Caught an exception -- " ++ show e
 
 
-loadScore :: String -> IO (Maybe HighScore)
-loadScore file = handle (fallback $ return Nothing) $ do
-  withFile file ReadMode $ \h -> do
-    hSetBinaryMode h True 
+loadScore :: IO (Maybe HighScore)
+loadScore = handle (fallback $ return Nothing) $ do
+  scoreFile <- getScoreFilePath
+  withFile scoreFile ReadMode $ \h -> do
+    hSetBinaryMode h True
     z <- B.hGetContents h
     liftM Just $ evaluate $ read $ B.unpack $ Z.decompress z
 
 
-storeScore :: HighScore -> String -> IO ()
-storeScore hs file = handle (fallback $ return ()) $ do
-  withFile file WriteMode $ \h ->
+storeScore :: HighScore -> IO ()
+storeScore hs = handle (fallback $ return ()) $ do
+  scoreFile <- getScoreFilePath
+  withFile scoreFile WriteMode $ \h -> do
+    hSetBinaryMode h True
     B.hPut h $ Z.compress $ B.pack $ show hs
+
+
+getScoreFilePath :: IO String
+getScoreFilePath = do
+  userAppDir <- getAppUserDataDirectory "jewelry"
+  exists <- doesDirectoryExist userAppDir
+  when (not exists) $ createDirectory userAppDir
+  return $ userAppDir </> "scores"

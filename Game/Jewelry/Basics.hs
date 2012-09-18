@@ -27,12 +27,14 @@ data DifficultyLevel = Classic | Medium | Easy
 data GameResult = GameResult {
     totalScore   :: Integer
   , totalFigures :: Integer
+  , level        :: Integer
   } deriving (Eq, Show, Read)
 
 gameResult :: GameResult
 gameResult = GameResult {
     totalScore = 0
   , totalFigures = 0
+  , level = 0
   }
 
 class GameObject a where
