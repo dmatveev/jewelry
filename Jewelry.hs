@@ -91,7 +91,10 @@ jwShuffle :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
 jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
 
 jwDropFigure :: MonadHandler i GameResult (Frontend Game) m => m ()
-jwDropFigure = hlift $ modify $ \s -> modUserData s dropFigure
+jwDropFigure = do
+  t <- liftIO getCurrentTime
+  hlift $ modify $ \s -> modUserData s $ \g ->
+    dropFigure $ setTicks g t
 
 pausingGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m a -> m a
 pausingGame act = do

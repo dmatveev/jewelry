@@ -37,15 +37,15 @@ data Game = Game {
 genMutators ''Game
 genMutators ''GameResult
 
-secs :: UTCTime -> Integer
-secs = floor . utctDayTime
+msecs :: UTCTime -> Integer
+msecs = floor . (* 1000) . utctDayTime
 
 
 mkGame :: (Int, Int) -> UTCTime -> Game
 mkGame (rs, cs) t =
   Game { field      = mkField rs cs
-       , figure     = generateNewFigure $ secs t
-       , nextFigure = generateNewFigure $ succ $ secs t
+       , figure     = generateNewFigure $ msecs t
+       , nextFigure = generateNewFigure $ succ $ msecs t
        , ticks      = t
        , result     = gameResult
        , state      = Playing
@@ -96,7 +96,7 @@ throwNewFigure :: Game -> Game
 throwNewFigure game = ensureState game Playing $ \gs ->
   flip execState gs $ do
     modify $ flip setFigure (nextFigure gs)
-    modify $ flip setNextFigure (generateNewFigure $ secs $ ticks game)
+    modify $ flip setNextFigure (generateNewFigure $ msecs $ ticks game)
     numFigs <- liftM succ $ gets (totalFigures . result)
     modify $ flip modResult (flip setTotalFigures numFigs)
     when (numFigs `mod` 20 == 0) $ do

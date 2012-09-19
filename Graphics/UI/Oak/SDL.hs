@@ -262,9 +262,10 @@ getSDLSurfSize = return =<< gets size
 
 
 instance MonadSurface (Frontend u) where
-  textSize = getSDLTextSize
-  surfSize = getSDLSurfSize
-
+  textSize     = getSDLTextSize
+  surfSize     = getSDLSurfSize
+  buttonExtent = return (5, 5)
+  editExtent   = return (7, 7)
 
 runSDLFrontend :: Frontend u a ->
                   FrontendConfig u ->
