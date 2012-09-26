@@ -53,7 +53,7 @@ checkHighScore gr = do
     when (isHighScore Classic gr hsc) $ do
       mname <- inputBox
                "Congratulations!"
-               "You have a highcore! Please enter your name:"
+               "You have a highscore! Please enter your name:"
       hlift $ maybe (return ()) (storeHighScore gr) mname
       openHighScores
 
