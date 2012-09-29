@@ -1,10 +1,11 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts #-}
 
+module Jewelry (playNewGame, handlers, jwHandlers) where
+
 import Data.Time.Clock
 
 import Control.Monad (when)
-import Control.Monad.Trans (liftIO)
-import Control.Monad.State (modify, gets)
+import Control.Monad.Trans (MonadIO, liftIO)
 
 import Graphics.UI.Oak
 import Graphics.UI.Oak.Basics
@@ -24,7 +25,6 @@ handlers = [ (BtnPlay,  KeyDown Return, playNewGame)
            , (BtnFame,  KeyDown Return, openHighScores)
            , (BtnAbout, KeyDown Return, openAboutScreen)
            , (BtnQuit,  KeyDown Return, tryQuit)
-
            , (BtnBack,  KeyDown Return, back)
            ]
 
@@ -39,17 +39,18 @@ jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       alteringGame $ jwMove ToLeft)
              ]
 
 
-tryQuit :: MonadHandler WidgetId () (Frontend Game) m => m ()
+tryQuit :: (MonadUserState Game mus, MonadHandler WidgetId () mus m) => m ()
 tryQuit = do
     ma <- msgBox title text [No, Yes]
     maybe (return ()) (\a -> when (a == Yes) quit) ma
   where title = "Quit"
         text  = "Are you sure you want to quit?"
 
-checkHighScore :: MonadHandler WidgetId () (Frontend Game) m =>
+checkHighScore :: (MonadUserState Game mus, MonadIO mus,
+                   MonadHandler WidgetId () mus m) =>
                   GameResult -> m ()
 checkHighScore gr = do
-    hsc <- hlift $ gets (hiscore . userData)
+    hsc <- hlift $ usGets hiscore
     when (isHighScore Classic gr hsc) $ do
       mname <- inputBox
                "Congratulations!"
@@ -58,68 +59,62 @@ checkHighScore gr = do
       openHighScores
 
 
-storeHighScore :: GameResult -> String -> Frontend Game ()
+storeHighScore :: (MonadUserState Game mus, MonadIO mus) => GameResult -> String -> mus ()
 storeHighScore gr name = do
-  modify $ \s ->
-    modUserData s $ \g ->
-    modHiscore g $ putScore Classic name gr
-  sc <- gets (hiscore . userData)
+  usMod $ \g -> modHiscore g $ putScore Classic name gr
+  sc <- usGets hiscore
   liftIO $ storeScore sc
 
   
-playNewGame :: MonadHandler WidgetId () (Frontend Game) m => m ()
+-- Yes, this funciton has no prototype.
+-- I do not know how to express it using only monadic interface constraints.
+-- My Haskell fu is not strong enough.
 playNewGame = do
     seed <- liftIO $ getCurrentTime
-    hscs <- hlift $ gets (hiscore . userData)
-    hlift $ modify $ \s ->
-      setUserData s $ setHiscore (mkGame (13, 6) seed) hscs
+    hscs <- hlift $ usGets hiscore
+    hlift $ usPut $ setHiscore (mkGame (13, 6) seed) hscs
     mgr <- hlift $ call gameScreen jwHandlers
     maybe (return ()) checkHighScore mgr
 
 
-openHighScores :: MonadHandler WidgetId () (Frontend Game) m => m ()
-openHighScores = (hlift $ gets (hiscore . userData))
-                 >>= (open . hiscoresScreen)
+openHighScores :: (MonadUserState Game mus, MonadHandler WidgetId () mus m) => m ()
+openHighScores = (hlift $ usGets hiscore) >>= (open . hiscoresScreen)
 
-openAboutScreen :: MonadHandler WidgetId () (Frontend Game) m => m ()
+openAboutScreen :: (MonadUserState Game mus, MonadHandler WidgetId () mus m) => m ()
 openAboutScreen = open aboutScreen
           
-jwMove :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
-jwMove d = hlift $ modify $ \s -> modUserData s $ moveFigure d
+jwMove :: (MonadUserState Game mus, MonadHandler i GameResult mus m) => Direction -> m ()
+jwMove d = hlift $ usMod $ moveFigure d
 
-jwShuffle :: MonadHandler i GameResult (Frontend Game) m => Direction -> m ()
-jwShuffle d = hlift $ modify $ \s -> modUserData s $ shuffleFigure d
+jwShuffle :: (MonadUserState Game mus, MonadHandler i GameResult mus m) => Direction -> m ()
+jwShuffle d = hlift $ usMod $ shuffleFigure d
 
-jwDropFigure :: MonadHandler i GameResult (Frontend Game) m => m ()
+jwDropFigure :: (MonadUserState Game mus, MonadHandler i GameResult mus m) => m ()
 jwDropFigure = do
   t <- liftIO getCurrentTime
-  hlift $ modify $ \s -> modUserData s $ \g ->
-    dropFigure $ setTicks g t
+  hlift $ usMod $ \g -> (dropFigure $ setTicks g t)
 
-pausingGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m a -> m a
+pausingGame :: (MonadUserState Game mus, MonadHandler WidgetId GameResult mus m) => m a -> m a
 pausingGame act = do
   r <- act
   t <- liftIO getCurrentTime
-  hlift $ modify $ \s -> modUserData s $ \g -> setTicks g t
+  hlift $ usMod $ \g -> setTicks g t
   return r
   
-jwPauseGame :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
-jwPauseGame = pausingGame $ msgBox "Jewelry" "Game paused" [Ok]
-              >> return ()
+jwPauseGame :: (MonadUserState Game mus, MonadHandler WidgetId GameResult mus m) => m ()
+jwPauseGame = pausingGame $ msgBox "Jewelry" "Game paused" [Ok] >> return ()
 
-jwEndGame :: MonadHandler WidgetId GameResult (Frontend Game) m
-             => m ()
+jwEndGame :: (MonadUserState Game mus, MonadHandler WidgetId GameResult mus m) => m ()
 jwEndGame = do
     ma <- pausingGame $ msgBox
           "End game"
           "Are you sure you want to end this game?"
           [No, Yes]
     maybe (return ()) (\a -> when (a == Yes) quitGame) ma
-  where quitGame = (hlift $ gets (result . userData)) >>= answer 
+  where quitGame = (hlift $ usGets result) >>= answer 
   
 
-alteringGame :: MonadHandler WidgetId GameResult (Frontend Game) m
-                => m () -> m ()
+alteringGame :: (MonadUserState Game mus, MonadHandler WidgetId GameResult mus m) => m () -> m ()
 alteringGame act = do
     rBefore <- acquireResult
     act
@@ -129,7 +124,7 @@ alteringGame act = do
     updateInfoTable Figures totalFigures rBefore rAfter
 
   where
-    acquireResult = hlift $ gets (result . userData)
+    acquireResult = hlift $ usGets result
     
     updateInfoTable i acc before after = do
       let current = acc after
@@ -143,14 +138,14 @@ ticksFor :: Integer -> Double
 ticksFor l = max 0.2 tfl
   where tfl = 1.0 - (fromInteger l) * 0.05
 
-jwLive :: MonadHandler WidgetId GameResult (Frontend Game) m => m ()
+jwLive :: (MonadUserState Game mus, MonadHandler WidgetId GameResult mus m) => m ()
 jwLive = do
-  gm <- hlift $ gets userData
+  gm <- hlift usGet
   if state gm == GameOver
     then msgBox "Jewelry" "Game over" [Ok] >> answer (result gm)
     else alteringGame $ do
       t <- liftIO getCurrentTime
-      hlift $ modify $ \s -> modUserData s $ \g ->
+      hlift $ usMod $ \g ->
         if timeDiffD t (ticks g) > (ticksFor $ level $ result g)
         then moveFigure ToDown $ setTicks g t
         else g

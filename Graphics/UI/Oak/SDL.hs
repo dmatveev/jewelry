@@ -31,6 +31,7 @@ data FrontendConfig u = FrontendConfig {
   , userData  :: u
   } deriving (Eq, Show)
 
+
 genMutators ''Rect
 genMutators ''FrontendConfig
 
@@ -239,6 +240,11 @@ instance MonadFrontend (FrontendConfig u) (Frontend u) where
   endIter = endIterSDL
   ownData = ownDataSDL
   runFcn = return runSDLFrontend
+
+instance MonadUserState u (Frontend u) where
+  usGet    = gets userData
+  usPut u  = modify $ flip setUserData u
+
 
 ownDataSDL :: Frontend u (FrontendConfig u)
 ownDataSDL = get >>= return
