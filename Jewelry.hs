@@ -34,6 +34,7 @@ jwHandlers = [ (Jewelry, KeyDown ArrowLeft,       alteringGame $ jwMove ToLeft)
              , (Jewelry, KeyDown ArrowUp,         jwShuffle ToUp)
              , (Jewelry, KeyDown SpaceKey,        alteringGame $ jwDropFigure)
              , (Jewelry, KeyDown (Character 'p'), jwPauseGame)
+             , (Jewelry, KeyDown (Character 'P'), jwPauseGame)
              , (Jewelry, KeyDown F10,             jwEndGame)
              , (Jewelry, Live,                    jwLive)
              ]
