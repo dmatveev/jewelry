@@ -1,7 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleContexts #-}
 
-module Jewelry (playNewGame, handlers, jwHandlers) where
-
 import Data.Time.Clock
 
 import Control.Monad (when)
