@@ -1,0 +1,20 @@
+Jewelry: the return of the (popular?) NES game
+-----------------------------------------------------------------
+
+Jewelry is the Haskell remake of the Magic Jewelry game for NES:
+
+  http://en.wikipedia.org/wiki/Magic_Jewelry
+
+Jewelry depends on the following Haskell packages:
+
+  mutators     - http://github.com/dmatveev/mutators
+  oak          - http://github.com/dmatveev/oak
+  SDL, SDL-ttf - available on Hackage
+
+Jewelry is bundled with the Liberation Sans font from:
+
+  https://fedorahosted.org/liberation-fonts/
+
+Building:
+
+  ghc --make Jewelry.hs
